@@ -49,7 +49,7 @@ var (
 		Border(lipgloss.NormalBorder()).
 		BorderForeground(lipgloss.Color("59")).
 		Padding(1, 2).
-		Width(50)
+		Width(80)
 
 	errorStyle = lipgloss.NewStyle().
 		Foreground(lipgloss.Color("196")).
@@ -220,8 +220,16 @@ func (m model) updateConversions() model {
 			num = m.toTwosComplement(num)
 		}
 	} else {
-		if num < 0 || num > maxUnsigned {
+		if num < 0 {
 			m.overflow = true
+		} else if m.bitSize == 64 {
+			// For 64-bit unsigned, any positive int64 value is valid
+			// since we're using int64 internally but representing uint64
+			m.overflow = false
+		} else {
+			if num > maxUnsigned {
+				m.overflow = true
+			}
 		}
 	}
 
@@ -247,9 +255,16 @@ func (m model) updateConversions() model {
 }
 
 func (m model) getBitLimits() (maxUnsigned, maxSigned, minSigned int64) {
-	maxUnsigned = (1 << m.bitSize) - 1
-	maxSigned = (1 << (m.bitSize - 1)) - 1
-	minSigned = -(1 << (m.bitSize - 1))
+	if m.bitSize == 64 {
+		// For 64-bit, we need special handling since (1<<64) overflows
+		maxUnsigned = -1 // Will be displayed as 18446744073709551615 when cast to uint64
+		maxSigned = 9223372036854775807
+		minSigned = -9223372036854775808
+	} else {
+		maxUnsigned = (1 << m.bitSize) - 1
+		maxSigned = (1 << (m.bitSize - 1)) - 1
+		minSigned = -(1 << (m.bitSize - 1))
+	}
 	return
 }
 
@@ -350,7 +365,11 @@ func (m model) View() string {
 	if m.signedMode {
 		rangeInfo = fmt.Sprintf("Range: %d to %d", minSigned, maxSigned)
 	} else {
-		rangeInfo = fmt.Sprintf("Range: 0 to %d", maxUnsigned)
+		if m.bitSize == 64 {
+			rangeInfo = "Range: 0 to 18446744073709551615"
+		} else {
+			rangeInfo = fmt.Sprintf("Range: 0 to %d", maxUnsigned)
+		}
 	}
 	s.WriteString(helpStyle.Render(rangeInfo))
 	s.WriteString("\n\n")
