@@ -1,4 +1,4 @@
-# BH - Binary Hex Converter
+# bh - Binary Hex Converter
 
 A Terminal User Interface (TUI) for converting between Hexadecimal, Binary, and Decimal numbers built with Go and Charm Bracelet's Bubbletea framework.
 
