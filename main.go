@@ -117,7 +117,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.hex, m.binary, m.decimal = "", "", ""
 			m.overflow = false
 
-		case "shift+tab", " ":
+		case "shift+tab":
 			switch m.bitSize {
 			case 8:
 				m.bitSize = 16
@@ -395,7 +395,7 @@ func (m model) View() string {
 		s.WriteString("\n\n")
 	}
 
-	s.WriteString(helpStyle.Render("Tab: Input type • Space: Bit size • S: Signed/Unsigned • q/Ctrl+C: Quit"))
+	s.WriteString(helpStyle.Render("Tab: Input type • Shift+Tab: Bit size • S: Signed/Unsigned • q/Ctrl+C: Quit"))
 
 	return s.String()
 }
