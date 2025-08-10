@@ -307,8 +307,16 @@ func (m model) formatBinaryWithBytes(binary string) string {
 		// Top brackets for this byte (2 nibbles = 2 sets of ╭──╮)
 		line1.WriteString(separatorStyle.Render("╭──╮╭──╮"))
 
-		// Binary byte (8 bits)
-		byteBits := binary[i : i+8]
+		// Binary byte (8 bits) - with bounds checking
+		endIdx := i + 8
+		if endIdx > len(binary) {
+			endIdx = len(binary)
+		}
+		byteBits := binary[i:endIdx]
+		// Pad with zeros if needed to maintain 8-bit alignment
+		for len(byteBits) < 8 {
+			byteBits = "0" + byteBits
+		}
 		line2.WriteString(byteBits)
 
 		// Vertical connectors for this byte
@@ -316,8 +324,17 @@ func (m model) formatBinaryWithBytes(binary string) string {
 
 		// Bottom with hex value for this byte
 		hexByte := ""
-		if byteCount < len(hexRaw)/2 {
-			hexByte = hexRaw[byteCount*2 : byteCount*2+2]
+		startIdx := byteCount * 2
+		hexEndIdx := startIdx + 2
+		if startIdx < len(hexRaw) {
+			if hexEndIdx > len(hexRaw) {
+				hexEndIdx = len(hexRaw)
+			}
+			hexByte = hexRaw[startIdx:hexEndIdx]
+			// Pad with spaces if needed to maintain alignment
+			for len(hexByte) < 2 {
+				hexByte += " "
+			}
 		}
 		line4.WriteString(separatorStyle.Render(fmt.Sprintf("╰──%s──╯", hexByte)))
 
