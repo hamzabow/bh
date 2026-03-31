@@ -1,6 +1,6 @@
 ---
 title: Tab Bar Mode Display
-status: not started
+status: done
 priority: medium
 category: ui
 ---

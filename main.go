@@ -64,12 +64,15 @@ var (
 		Foreground(lipgloss.Color("208")).
 		Bold(true)
 
-	bitSizeStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("93")).
-		Bold(true).
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("93")).
-		Padding(0, 1)
+	activeTabStyle = lipgloss.NewStyle().
+		Foreground(lipgloss.Color("205")).
+		Bold(true)
+
+	inactiveTabStyle = lipgloss.NewStyle().
+		Foreground(lipgloss.Color("241"))
+
+	tabSepStyle = lipgloss.NewStyle().
+		Foreground(lipgloss.Color("241"))
 
 	labelStyle = lipgloss.NewStyle().
 		Foreground(lipgloss.Color("243"))
@@ -103,7 +106,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+c", "q":
 			return m, tea.Quit
 
-		case "tab":
+		case "f1":
 			switch m.inputType {
 			case "decimal":
 				m.inputType = "hex"
@@ -120,7 +123,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.hex, m.binary, m.decimal, m.octal = "", "", "", ""
 			m.overflow = false
 
-		case "shift+tab":
+		case "f2":
 			switch m.bitSize {
 			case 8:
 				m.bitSize = 16
@@ -133,7 +136,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			m = m.updateConversions()
 
-		case "s":
+		case "f3":
 			m.signedMode = !m.signedMode
 			m = m.updateConversions()
 
@@ -376,16 +379,43 @@ func (m model) formatHexWithBytes(hex string) string {
 	return result.String()
 }
 
+func renderTabBar(options []string, active string) string {
+	var parts []string
+	for _, opt := range options {
+		if opt == active {
+			parts = append(parts, activeTabStyle.Render(opt))
+		} else {
+			parts = append(parts, inactiveTabStyle.Render(opt))
+		}
+	}
+	return strings.Join(parts, tabSepStyle.Render(" │ "))
+}
+
 func (m model) View() string {
 	var s strings.Builder
 
 	s.WriteString(titleStyle.Render("Number Base Converter"))
 	s.WriteString("\n\n")
 
-	bitInfo := fmt.Sprintf("%d-bit %s", m.bitSize, map[bool]string{true: "Signed", false: "Unsigned"}[m.signedMode])
-	s.WriteString(bitSizeStyle.Render(bitInfo))
+	// Input type tab bar
+	inputTypes := []string{"Decimal", "Hex", "Octal", "Binary"}
+	activeInput := map[string]string{"decimal": "Decimal", "hex": "Hex", "octal": "Octal", "binary": "Binary"}[m.inputType]
 	s.WriteString("  ")
+	s.WriteString(renderTabBar(inputTypes, activeInput))
+	s.WriteString("\n")
 
+	// Bit size + signed/unsigned tab bars
+	bitSizes := []string{"8-bit", "16-bit", "32-bit", "64-bit"}
+	activeBit := fmt.Sprintf("%d-bit", m.bitSize)
+	signedOpts := []string{"Unsigned", "Signed"}
+	activeSigned := map[bool]string{true: "Signed", false: "Unsigned"}[m.signedMode]
+	s.WriteString("  ")
+	s.WriteString(renderTabBar(bitSizes, activeBit))
+	s.WriteString("    ")
+	s.WriteString(renderTabBar(signedOpts, activeSigned))
+	s.WriteString("\n\n")
+
+	// Range info
 	maxUnsigned, maxSigned, minSigned := m.getBitLimits()
 	var rangeInfo string
 	if m.signedMode {
@@ -397,12 +427,9 @@ func (m model) View() string {
 			rangeInfo = fmt.Sprintf("Range: 0 to %d", maxUnsigned)
 		}
 	}
+	s.WriteString("  ")
 	s.WriteString(helpStyle.Render(rangeInfo))
 	s.WriteString("\n\n")
-
-	inputLabel := fmt.Sprintf("Input (%s):", strings.Title(m.inputType))
-	s.WriteString(inputLabel)
-	s.WriteString("\n")
 
 	inputDisplay := m.input
 	if m.focused {
@@ -442,7 +469,7 @@ func (m model) View() string {
 		s.WriteString("\n\n")
 	}
 
-	s.WriteString(helpStyle.Render("Tab: Input type • Shift+Tab: Bit size • S: Signed/Unsigned • q/Ctrl+C: Quit"))
+	s.WriteString(helpStyle.Render("F1: Input type • F2: Bit size • F3: Signed/Unsigned • q/Ctrl+C: Quit"))
 
 	return s.String()
 }

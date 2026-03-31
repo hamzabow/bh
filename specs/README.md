@@ -13,4 +13,4 @@
 | [README Screenshot](readme-screenshot.md) | not started | medium |
 | [go install Support](go-install-support.md) | not started | medium |
 | [Release Binaries](release-binaries.md) | not started | low |
-| [Tab Bar Mode Display](tab-bar-modes.md) | not started | medium |
+| [Tab Bar Mode Display](tab-bar-modes.md) | done | medium |
