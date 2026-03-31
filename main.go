@@ -18,6 +18,7 @@ type model struct {
 	hex        string
 	binary     string
 	decimal    string
+	octal      string
 	focused    bool
 	bitSize    int
 	signedMode bool
@@ -107,6 +108,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "decimal":
 				m.inputType = "hex"
 			case "hex":
+				m.inputType = "octal"
+			case "octal":
 				m.inputType = "binary"
 			case "binary":
 				m.inputType = "decimal"
@@ -114,7 +117,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.input = ""
 			m.cursor = 0
 			m.err = nil
-			m.hex, m.binary, m.decimal = "", "", ""
+			m.hex, m.binary, m.decimal, m.octal = "", "", "", ""
 			m.overflow = false
 
 		case "shift+tab":
@@ -174,6 +177,8 @@ func (m model) isValidChar(char string) bool {
 	case "hex":
 		return (char >= "0" && char <= "9") ||
 			(strings.ToLower(char) >= "a" && strings.ToLower(char) <= "f")
+	case "octal":
+		return char >= "0" && char <= "7"
 	case "binary":
 		return char == "0" || char == "1"
 	}
@@ -182,7 +187,7 @@ func (m model) isValidChar(char string) bool {
 
 func (m model) updateConversions() model {
 	if m.input == "" {
-		m.hex, m.binary, m.decimal = "", "", ""
+		m.hex, m.binary, m.decimal, m.octal = "", "", "", ""
 		m.err = nil
 		m.overflow = false
 		return m
@@ -196,13 +201,15 @@ func (m model) updateConversions() model {
 		num, err = strconv.ParseInt(m.input, 10, 64)
 	case "hex":
 		num, err = strconv.ParseInt(m.input, 16, 64)
+	case "octal":
+		num, err = strconv.ParseInt(m.input, 8, 64)
 	case "binary":
 		num, err = strconv.ParseInt(m.input, 2, 64)
 	}
 
 	if err != nil {
 		m.err = err
-		m.hex, m.binary, m.decimal = "", "", ""
+		m.hex, m.binary, m.decimal, m.octal = "", "", "", ""
 		m.overflow = false
 		return m
 	}
@@ -247,6 +254,8 @@ func (m model) updateConversions() model {
 	hexWidth := m.bitSize / 4
 	hexRaw := strings.ToUpper(fmt.Sprintf("%0*x", hexWidth, num))
 	m.hex = m.formatHexWithBytes(hexRaw)
+
+	m.octal = fmt.Sprintf("%o", num)
 
 	binaryRaw := fmt.Sprintf("%0*b", m.bitSize, num)
 	m.binary = m.formatBinaryWithBytes(binaryRaw)
@@ -426,6 +435,8 @@ func (m model) View() string {
 		s.WriteString(outputStyle.Render(labelStyle.Render("Decimal: ") + m.decimal))
 		s.WriteString("\n")
 		s.WriteString(outputStyle.Render(labelStyle.Render("Hexadecimal: ") + m.hex))
+		s.WriteString("\n")
+		s.WriteString(outputStyle.Render(labelStyle.Render("Octal: ") + m.octal))
 		s.WriteString("\n")
 		s.WriteString(outputStyle.Render(labelStyle.Render("Binary: ") + m.binary))
 		s.WriteString("\n\n")
