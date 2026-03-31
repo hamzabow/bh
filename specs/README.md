@@ -8,7 +8,7 @@
 | [CLI Arguments](cli-arguments.md) | not started | medium |
 | [Negative Number Input](negative-input.md) | done | medium |
 | [Paste Support](paste-support.md) | not started | low |
-| [Prefix Detection](prefix-detection.md) | not started | low |
+| [Prefix Detection](prefix-detection.md) | done | low |
 | [Home/End Keys](home-end-keys.md) | not started | low |
 | [README Screenshot](readme-screenshot.md) | not started | medium |
 | [go install Support](go-install-support.md) | not started | medium |

@@ -145,9 +145,16 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case "backspace":
 			if len(m.input) > 0 && m.cursor > 0 {
+				wasPrefix := m.hasPrefix()
 				m.input = m.input[:m.cursor-1] + m.input[m.cursor:]
 				m.cursor--
-				m = m.updateConversions()
+				// If we broke a prefix, revert to decimal and clear
+				if wasPrefix && !m.hasPrefix() {
+					m.inputType = "decimal"
+					m = m.updateConversions()
+				} else {
+					m = m.updateConversions()
+				}
 			}
 
 		case "left":
@@ -165,10 +172,44 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		default:
 			char := msg.String()
-			if len(char) == 1 && m.isValidChar(char) {
-				m.input = m.input[:m.cursor] + char + m.input[m.cursor:]
-				m.cursor++
-				m = m.updateConversions()
+			if len(char) == 1 {
+				// Prefix detection: input is "0", cursor at 1, typing x/b/o
+				if m.input == "0" && m.cursor == 1 {
+					lower := strings.ToLower(char)
+					switch lower {
+					case "x":
+						m.inputType = "hex"
+						m.input = "0" + char
+						m.cursor = 2
+						m.err = nil
+						m.overflow = false
+						m.hex, m.binary, m.decimal, m.octal = "", "", "", ""
+					case "b":
+						m.inputType = "binary"
+						m.input = "0" + char
+						m.cursor = 2
+						m.err = nil
+						m.overflow = false
+						m.hex, m.binary, m.decimal, m.octal = "", "", "", ""
+					case "o":
+						m.inputType = "octal"
+						m.input = "0" + char
+						m.cursor = 2
+						m.err = nil
+						m.overflow = false
+						m.hex, m.binary, m.decimal, m.octal = "", "", "", ""
+					default:
+						if m.isValidChar(char) {
+							m.input = m.input[:m.cursor] + char + m.input[m.cursor:]
+							m.cursor++
+							m = m.updateConversions()
+						}
+					}
+				} else if m.isValidChar(char) {
+					m.input = m.input[:m.cursor] + char + m.input[m.cursor:]
+					m.cursor++
+					m = m.updateConversions()
+				}
 			}
 		}
 	}
@@ -176,7 +217,19 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+func (m model) hasPrefix() bool {
+	return len(m.input) >= 2 && m.input[0] == '0' &&
+		(m.input[1] == 'x' || m.input[1] == 'X' ||
+			m.input[1] == 'b' || m.input[1] == 'B' ||
+			m.input[1] == 'o' || m.input[1] == 'O')
+}
+
 func (m model) isValidChar(char string) bool {
+	// Don't allow typing before or inside a prefix
+	if m.hasPrefix() && m.cursor < 2 {
+		return false
+	}
+
 	switch m.inputType {
 	case "decimal":
 		if char == "-" && m.signedMode && m.cursor == 0 && !strings.Contains(m.input, "-") {
@@ -205,15 +258,27 @@ func (m model) updateConversions() model {
 	var num int64
 	var err error
 
+	parseInput := m.input
+	if m.hasPrefix() {
+		parseInput = m.input[2:]
+	}
+
+	if parseInput == "" || parseInput == "-" {
+		m.hex, m.binary, m.decimal, m.octal = "", "", "", ""
+		m.err = nil
+		m.overflow = false
+		return m
+	}
+
 	switch m.inputType {
 	case "decimal":
-		num, err = strconv.ParseInt(m.input, 10, 64)
+		num, err = strconv.ParseInt(parseInput, 10, 64)
 	case "hex":
-		num, err = strconv.ParseInt(m.input, 16, 64)
+		num, err = strconv.ParseInt(parseInput, 16, 64)
 	case "octal":
-		num, err = strconv.ParseInt(m.input, 8, 64)
+		num, err = strconv.ParseInt(parseInput, 8, 64)
 	case "binary":
-		num, err = strconv.ParseInt(m.input, 2, 64)
+		num, err = strconv.ParseInt(parseInput, 2, 64)
 	}
 
 	if err != nil {
