@@ -74,6 +74,9 @@ var (
 	tabSepStyle = lipgloss.NewStyle().
 		Foreground(lipgloss.Color("241"))
 
+	keyHintStyle = lipgloss.NewStyle().
+		Foreground(lipgloss.Color("244"))
+
 	labelStyle = lipgloss.NewStyle().
 		Foreground(lipgloss.Color("243"))
 
@@ -176,6 +179,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m model) isValidChar(char string) bool {
 	switch m.inputType {
 	case "decimal":
+		if char == "-" && m.signedMode && m.cursor == 0 && !strings.Contains(m.input, "-") {
+			return true
+		}
 		return char >= "0" && char <= "9"
 	case "hex":
 		return (char >= "0" && char <= "9") ||
@@ -401,6 +407,7 @@ func (m model) View() string {
 	inputTypes := []string{"Decimal", "Hex", "Octal", "Binary"}
 	activeInput := map[string]string{"decimal": "Decimal", "hex": "Hex", "octal": "Octal", "binary": "Binary"}[m.inputType]
 	s.WriteString("  ")
+	s.WriteString(keyHintStyle.Render("[F1]")+" ")
 	s.WriteString(renderTabBar(inputTypes, activeInput))
 	s.WriteString("\n")
 
@@ -410,8 +417,11 @@ func (m model) View() string {
 	signedOpts := []string{"Unsigned", "Signed"}
 	activeSigned := map[bool]string{true: "Signed", false: "Unsigned"}[m.signedMode]
 	s.WriteString("  ")
+	s.WriteString(keyHintStyle.Render("[F2]")+" ")
 	s.WriteString(renderTabBar(bitSizes, activeBit))
-	s.WriteString("    ")
+	s.WriteString("\n")
+	s.WriteString("  ")
+	s.WriteString(keyHintStyle.Render("[F3]")+" ")
 	s.WriteString(renderTabBar(signedOpts, activeSigned))
 	s.WriteString("\n\n")
 
@@ -469,7 +479,7 @@ func (m model) View() string {
 		s.WriteString("\n\n")
 	}
 
-	s.WriteString(helpStyle.Render("F1: Input type • F2: Bit size • F3: Signed/Unsigned • q/Ctrl+C: Quit"))
+	s.WriteString(helpStyle.Render("q/Ctrl+C: Quit"))
 
 	return s.String()
 }

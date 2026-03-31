@@ -6,7 +6,7 @@
 | [Float Mode (IEEE 754)](float-mode.md) | not started | high |
 | [Clipboard Copy](clipboard-copy.md) | not started | medium |
 | [CLI Arguments](cli-arguments.md) | not started | medium |
-| [Negative Number Input](negative-input.md) | not started | medium |
+| [Negative Number Input](negative-input.md) | done | medium |
 | [Paste Support](paste-support.md) | not started | low |
 | [Prefix Detection](prefix-detection.md) | not started | low |
 | [Home/End Keys](home-end-keys.md) | not started | low |
