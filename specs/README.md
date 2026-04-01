@@ -9,8 +9,9 @@
 | [Negative Number Input](negative-input.md) | done | medium |
 | [Paste Support](paste-support.md) | not started | low |
 | [Prefix Detection](prefix-detection.md) | done | low |
-| [Home/End Keys](home-end-keys.md) | not started | low |
+| [Keyboard Shortcuts & Help Page](home-end-keys.md) | done | low |
 | [README Screenshot](readme-screenshot.md) | not started | medium |
 | [go install Support](go-install-support.md) | not started | medium |
 | [Release Binaries](release-binaries.md) | not started | low |
 | [Tab Bar Mode Display](tab-bar-modes.md) | done | medium |
+| [Input Digit Grouping](input-grouping.md) | not started | medium |
