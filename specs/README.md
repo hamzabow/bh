@@ -10,7 +10,7 @@
 | [Paste Support](paste-support.md) | not started | low |
 | [Prefix Detection](prefix-detection.md) | done | low |
 | [Keyboard Shortcuts & Help Page](home-end-keys.md) | done | low |
-| [README Screenshot](readme-screenshot.md) | not started | medium |
+| [README Demo Video](readme-screenshot.md) | not started | medium |
 | [go install Support](go-install-support.md) | not started | medium |
 | [Release Binaries](release-binaries.md) | not started | low |
 | [Tab Bar Mode Display](tab-bar-modes.md) | done | medium |
