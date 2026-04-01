@@ -16,7 +16,7 @@ BINARY := bh
 .PHONY: help
 help: ## Show all available targets with descriptions
 	@echo ""
-	@echo "  \033[1mbh\033[0m — Terminal UI for converting between number bases"
+	@echo "  \033[1;35mbh\033[0m — Terminal UI for converting between number bases"
 	@echo "  (decimal, hexadecimal, octal, binary)"
 	@echo ""
 	@awk 'BEGIN {FS = ":.*##"} \
