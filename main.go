@@ -33,14 +33,14 @@ var (
 		Padding(1, 2)
 
 	inputStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("86")).
+		Foreground(lipgloss.Color("255")).
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color("62")).
 		Padding(1, 2).
 		Width(50)
 
 	focusedInputStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("86")).
+		Foreground(lipgloss.Color("255")).
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color("205")).
 		Padding(1, 2).
@@ -611,8 +611,8 @@ func (m model) View() string {
 	s.WriteString(helpStyle.Render(rangeInfo))
 	s.WriteString("\n\n")
 
-	inputColor := lipgloss.NewStyle().Foreground(lipgloss.Color("86"))
-	cursorStyle := lipgloss.NewStyle().Reverse(true).Foreground(lipgloss.Color("86"))
+	inputColor := lipgloss.NewStyle().Foreground(lipgloss.Color("255"))
+	cursorStyle := lipgloss.NewStyle().Reverse(true).Foreground(lipgloss.Color("255"))
 	var inputDisplay string
 	if m.focused {
 		if m.cursor < len(m.input) {
