@@ -611,11 +611,12 @@ func (m model) View() string {
 	s.WriteString(helpStyle.Render(rangeInfo))
 	s.WriteString("\n\n")
 
-	cursorStyle := lipgloss.NewStyle().Reverse(true)
+	inputColor := lipgloss.NewStyle().Foreground(lipgloss.Color("86"))
+	cursorStyle := lipgloss.NewStyle().Reverse(true).Foreground(lipgloss.Color("86"))
 	var inputDisplay string
 	if m.focused {
 		if m.cursor < len(m.input) {
-			inputDisplay = m.input[:m.cursor] + cursorStyle.Render(string(m.input[m.cursor])) + m.input[m.cursor+1:]
+			inputDisplay = m.input[:m.cursor] + cursorStyle.Render(string(m.input[m.cursor])) + inputColor.Render(m.input[m.cursor+1:])
 		} else {
 			inputDisplay = m.input + cursorStyle.Render(" ")
 		}
