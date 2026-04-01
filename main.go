@@ -138,12 +138,24 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 		case "ctrl+w":
-			if m.hasPrefix() {
-				m.inputType = "decimal"
+			if m.cursor > 0 {
+				// Delete backward to prefix boundary or start of input
+				stop := 0
+				if m.hasPrefix() {
+					stop = 2
+				}
+				if m.cursor > stop {
+					m.input = m.input[:stop] + m.input[m.cursor:]
+					m.cursor = stop
+				}
+				// If only prefix remains, clear everything
+				if m.hasPrefix() && len(m.input) <= 2 {
+					m.inputType = "decimal"
+					m.input = ""
+					m.cursor = 0
+				}
+				m = m.updateConversions()
 			}
-			m.input = ""
-			m.cursor = 0
-			m = m.updateConversions()
 
 		case "f1":
 			switch m.inputType {
@@ -529,7 +541,7 @@ func (m model) viewHelp() string {
 			[][2]string{
 				{"Backspace", "Delete character before cursor"},
 				{"Delete", "Delete character at cursor"},
-				{"Ctrl+W", "Clear input"},
+				{"Ctrl+W", "Delete word backward"},
 			},
 		},
 		{
