@@ -21,9 +21,10 @@ type model struct {
 	octal      string
 	focused    bool
 	bitSize    int
-	signedMode bool
-	overflow   bool
-	showHelp   bool
+	signedMode   bool
+	overflow     bool
+	showHelp     bool
+	groupedInput bool
 }
 
 var (
@@ -190,6 +191,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "f3":
 			m.signedMode = !m.signedMode
 			m = m.updateConversions()
+
+		case "f4":
+			m.groupedInput = !m.groupedInput
 
 		case "backspace":
 			if len(m.input) > 0 && m.cursor > 0 {
@@ -526,6 +530,7 @@ func (m model) viewHelp() string {
 				{"F1", "Cycle input base (Dec/Hex/Oct/Bin)"},
 				{"F2", "Cycle bit size (8/16/32/64)"},
 				{"F3", "Toggle signed/unsigned"},
+				{"F4", "Toggle input digit grouping"},
 			},
 		},
 		{
@@ -605,6 +610,16 @@ func (m model) View() string {
 	s.WriteString("  ")
 	s.WriteString(keyHintStyle.Render("[F3]")+" ")
 	s.WriteString(renderTabBar(signedOpts, activeSigned))
+	s.WriteString("\n")
+
+	groupedOpts := []string{"Off", "On"}
+	activeGrouped := "Off"
+	if m.groupedInput {
+		activeGrouped = "On"
+	}
+	s.WriteString("  ")
+	s.WriteString(keyHintStyle.Render("[F4]") + " Grouped: ")
+	s.WriteString(renderTabBar(groupedOpts, activeGrouped))
 	s.WriteString("\n\n")
 
 	// Range info
@@ -623,24 +638,21 @@ func (m model) View() string {
 	s.WriteString(helpStyle.Render(rangeInfo))
 	s.WriteString("\n\n")
 
-	inputColor := lipgloss.NewStyle().Foreground(lipgloss.Color("255"))
-	cursorStyle := lipgloss.NewStyle().Reverse(true).Foreground(lipgloss.Color("255"))
 	var inputDisplay string
-	if m.focused {
-		if m.cursor < len(m.input) {
-			inputDisplay = m.input[:m.cursor] + cursorStyle.Render(string(m.input[m.cursor])) + inputColor.Render(m.input[m.cursor+1:])
-		} else {
-			inputDisplay = m.input + cursorStyle.Render(" ")
-		}
+	if m.groupedInput && len(m.input) > 0 {
+		inputDisplay = m.renderGroupedInputDisplay()
 	} else {
-		inputDisplay = m.input
+		inputDisplay = applyCursor(m.input, m.cursor, m.focused)
 	}
 
+	currentInputStyle := inputStyle
 	if m.focused {
-		s.WriteString(focusedInputStyle.Render(inputDisplay))
-	} else {
-		s.WriteString(inputStyle.Render(inputDisplay))
+		currentInputStyle = focusedInputStyle
 	}
+	if m.groupedInput {
+		currentInputStyle = currentInputStyle.Width(80)
+	}
+	s.WriteString(currentInputStyle.Render(inputDisplay))
 	s.WriteString("\n\n")
 
 	if m.err != nil {
@@ -668,6 +680,293 @@ func (m model) View() string {
 	s.WriteString(helpStyle.Render("q: Quit · ?: Help"))
 
 	return s.String()
+}
+
+func applyCursor(text string, pos int, focused bool) string {
+	if !focused {
+		return text
+	}
+	inputColor := lipgloss.NewStyle().Foreground(lipgloss.Color("255"))
+	cs := lipgloss.NewStyle().Reverse(true).Foreground(lipgloss.Color("255"))
+	if pos < len(text) {
+		return text[:pos] + cs.Render(string(text[pos])) + inputColor.Render(text[pos+1:])
+	}
+	return text + cs.Render(" ")
+}
+
+func (m model) renderGroupedInputDisplay() string {
+	digits := m.input
+	prefixLen := 0
+	if m.hasPrefix() {
+		prefixLen = 2
+		digits = m.input[2:]
+	} else if m.inputType == "decimal" && len(m.input) > 0 && m.input[0] == '-' {
+		prefixLen = 1
+		digits = m.input[1:]
+	}
+
+	if len(digits) == 0 {
+		return applyCursor(m.input, m.cursor, m.focused)
+	}
+
+	prefix := m.input[:prefixLen]
+	cursorInDigits := m.cursor - prefixLen
+
+	switch m.inputType {
+	case "decimal", "octal":
+		return m.renderSpacedGrouped(prefix, digits, cursorInDigits)
+	case "binary":
+		return m.renderBracketBinary(prefix, digits, cursorInDigits)
+	case "hex":
+		return m.renderBracketHex(prefix, digits, cursorInDigits)
+	}
+	return applyCursor(m.input, m.cursor, m.focused)
+}
+
+func (m model) renderSpacedGrouped(prefix, digits string, cursorInDigits int) string {
+	n := len(digits)
+	groupSize := 3
+	firstGroupSize := n % groupSize
+	if firstGroupSize == 0 {
+		firstGroupSize = groupSize
+	}
+
+	var buf strings.Builder
+	buf.WriteString(prefix)
+	displayPos := len(prefix)
+	posMap := make([]int, n+1)
+
+	for i := 0; i < n; i++ {
+		if i > 0 && (i == firstGroupSize || (i > firstGroupSize && (i-firstGroupSize)%groupSize == 0)) {
+			buf.WriteByte(' ')
+			displayPos++
+		}
+		posMap[i] = displayPos
+		buf.WriteByte(digits[i])
+		displayPos++
+	}
+	posMap[n] = displayPos
+
+	cursorDisplayPos := 0
+	if cursorInDigits < 0 {
+		cursorDisplayPos = m.cursor
+	} else if cursorInDigits >= n {
+		cursorDisplayPos = posMap[n]
+	} else {
+		cursorDisplayPos = posMap[cursorInDigits]
+	}
+
+	return applyCursor(buf.String(), cursorDisplayPos, m.focused)
+}
+
+type digitGroup struct {
+	text string
+	full bool
+}
+
+func groupDigits(digits string, groupSize int) []digitGroup {
+	n := len(digits)
+	if n == 0 {
+		return nil
+	}
+
+	firstGroupSize := n % groupSize
+	if firstGroupSize == 0 {
+		firstGroupSize = groupSize
+	}
+
+	var groups []digitGroup
+	first := digits[:firstGroupSize]
+	groups = append(groups, digitGroup{first, len(first) == groupSize})
+
+	for i := firstGroupSize; i < n; i += groupSize {
+		end := i + groupSize
+		if end > n {
+			end = n
+		}
+		g := digits[i:end]
+		groups = append(groups, digitGroup{g, len(g) == groupSize})
+	}
+	return groups
+}
+
+func (m model) renderBracketBinary(prefix, digits string, cursorInDigits int) string {
+	groups := groupDigits(digits, 8)
+	n := len(digits)
+
+	hasFullGroup := false
+	for _, g := range groups {
+		if g.full {
+			hasFullGroup = true
+			break
+		}
+	}
+
+	if !hasFullGroup {
+		cursorDisplayPos := len(prefix) + cursorInDigits
+		if cursorInDigits < 0 {
+			cursorDisplayPos = m.cursor
+		} else if cursorInDigits >= n {
+			cursorDisplayPos = len(prefix) + n
+		}
+		return applyCursor(prefix+digits, cursorDisplayPos, m.focused)
+	}
+
+	var topLine, digitLine, midLine, botLine strings.Builder
+	if prefix != "" {
+		digitLine.WriteString(prefix)
+		pad := strings.Repeat(" ", len(prefix))
+		topLine.WriteString(pad)
+		midLine.WriteString(pad)
+		botLine.WriteString(pad)
+	}
+
+	displayPos := len(prefix)
+	posMap := make([]int, n+1)
+	rawIdx := 0
+
+	for gi, g := range groups {
+		if gi > 0 {
+			topLine.WriteString(" ")
+			digitLine.WriteString(" ")
+			midLine.WriteString(" ")
+			botLine.WriteString(" ")
+			displayPos++
+		}
+
+		gLen := len(g.text)
+
+		if g.full {
+			topLine.WriteString(separatorStyle.Render("╭──╮╭──╮"))
+			midLine.WriteString(separatorStyle.Render("│      │"))
+			hexVal := fmt.Sprintf("%02X", m.getNumFromBinary(g.text))
+			botLine.WriteString(separatorStyle.Render(fmt.Sprintf("╰──%s──╯", hexVal)))
+
+			for i := 0; i < gLen; i++ {
+				posMap[rawIdx] = displayPos
+				digitLine.WriteByte(g.text[i])
+				rawIdx++
+				displayPos++
+			}
+		} else {
+			topLine.WriteString(strings.Repeat(" ", gLen))
+			midLine.WriteString(strings.Repeat(" ", gLen))
+			botLine.WriteString(strings.Repeat(" ", gLen))
+
+			for i := 0; i < gLen; i++ {
+				posMap[rawIdx] = displayPos
+				digitLine.WriteByte(g.text[i])
+				rawIdx++
+				displayPos++
+			}
+		}
+	}
+	posMap[n] = displayPos
+
+	cursorDisplayPos := 0
+	if cursorInDigits < 0 {
+		cursorDisplayPos = m.cursor
+	} else if cursorInDigits >= n {
+		cursorDisplayPos = posMap[n]
+	} else {
+		cursorDisplayPos = posMap[cursorInDigits]
+	}
+
+	renderedDigitLine := applyCursor(digitLine.String(), cursorDisplayPos, m.focused)
+	return topLine.String() + "\n" + renderedDigitLine + "\n" + midLine.String() + "\n" + botLine.String()
+}
+
+func (m model) renderBracketHex(prefix, digits string, cursorInDigits int) string {
+	groups := groupDigits(digits, 2)
+	n := len(digits)
+
+	hasFullGroup := false
+	for _, g := range groups {
+		if g.full {
+			hasFullGroup = true
+			break
+		}
+	}
+
+	if !hasFullGroup {
+		cursorDisplayPos := len(prefix) + cursorInDigits
+		if cursorInDigits < 0 {
+			cursorDisplayPos = m.cursor
+		} else if cursorInDigits >= n {
+			cursorDisplayPos = len(prefix) + n
+		}
+		return applyCursor(prefix+digits, cursorDisplayPos, m.focused)
+	}
+
+	var topLine, digitLine, midLine, botLine strings.Builder
+	if prefix != "" {
+		digitLine.WriteString(prefix)
+		pad := strings.Repeat(" ", len(prefix))
+		topLine.WriteString(pad)
+		midLine.WriteString(pad)
+		botLine.WriteString(pad)
+	}
+
+	displayPos := len(prefix)
+	posMap := make([]int, n+1)
+	rawIdx := 0
+
+	for gi, g := range groups {
+		if gi > 0 {
+			topLine.WriteString(" ")
+			digitLine.WriteString(" ")
+			midLine.WriteString(" ")
+			botLine.WriteString(" ")
+			displayPos++
+		}
+
+		if g.full {
+			topLine.WriteString(separatorStyle.Render("╭───╮"))
+			midLine.WriteString(separatorStyle.Render("│   │"))
+			byteVal, _ := strconv.ParseInt(g.text, 16, 64)
+			botLine.WriteString(separatorStyle.Render(fmt.Sprintf("╰%3d╯", byteVal)))
+
+			// Leading space in 5-char cell
+			digitLine.WriteByte(' ')
+			displayPos++
+
+			for i := 0; i < 2; i++ {
+				posMap[rawIdx] = displayPos
+				digitLine.WriteByte(g.text[i])
+				rawIdx++
+				displayPos++
+			}
+
+			// Trailing padding (5 - 1 leading - 2 digits = 2)
+			digitLine.WriteString("  ")
+			displayPos += 2
+		} else {
+			gLen := len(g.text)
+			topLine.WriteString(strings.Repeat(" ", gLen))
+			midLine.WriteString(strings.Repeat(" ", gLen))
+			botLine.WriteString(strings.Repeat(" ", gLen))
+
+			for i := 0; i < gLen; i++ {
+				posMap[rawIdx] = displayPos
+				digitLine.WriteByte(g.text[i])
+				rawIdx++
+				displayPos++
+			}
+		}
+	}
+	posMap[n] = displayPos
+
+	cursorDisplayPos := 0
+	if cursorInDigits < 0 {
+		cursorDisplayPos = m.cursor
+	} else if cursorInDigits >= n {
+		cursorDisplayPos = posMap[n]
+	} else {
+		cursorDisplayPos = posMap[cursorInDigits]
+	}
+
+	renderedDigitLine := applyCursor(digitLine.String(), cursorDisplayPos, m.focused)
+	return topLine.String() + "\n" + renderedDigitLine + "\n" + midLine.String() + "\n" + botLine.String()
 }
 
 func main() {
