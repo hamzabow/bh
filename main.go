@@ -34,6 +34,7 @@ type model struct {
 	overflow   bool
 	showHelp   bool
 	groupMode  groupingMode
+	permView   bool
 }
 
 var (
@@ -203,6 +204,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case "f4":
 			m.groupMode = (m.groupMode + 1) % 4
+
+		case "p":
+			m.permView = !m.permView
+			m = m.updateConversions()
 
 		case "backspace":
 			if len(m.input) > 0 && m.cursor > 0 {
@@ -393,7 +398,11 @@ func (m model) updateConversions() model {
 	m.octal = fmt.Sprintf("%o", num)
 
 	binaryRaw := fmt.Sprintf("%0*b", m.bitSize, num)
-	m.binary = m.formatBinaryWithBytes(binaryRaw)
+	if m.permView {
+		m.binary = m.formatBinaryPerms(binaryRaw)
+	} else {
+		m.binary = m.formatBinaryWithBytes(binaryRaw)
+	}
 
 	return m
 }
@@ -491,6 +500,36 @@ func (m model) getNumFromBinary(binary string) int64 {
 	return 0
 }
 
+func (m model) formatBinaryPerms(binary string) string {
+	indent := strings.Repeat(" ", 2)
+	groups := groupDigits(binary, 3)
+
+	var topLine, digitLine, botLine, rwxLine strings.Builder
+
+	for gi, g := range groups {
+		if gi > 0 {
+			topLine.WriteString(" ")
+			digitLine.WriteString(" ")
+			botLine.WriteString(" ")
+			rwxLine.WriteString(" ")
+		}
+
+		if g.full {
+			topLine.WriteString(separatorStyle.Render("╭─╮"))
+			octalVal := binaryGroupToOctal(g.text)
+			botLine.WriteString(separatorStyle.Render(fmt.Sprintf("╰%d╯", octalVal)))
+			rwxLine.WriteString(separatorStyle.Render(octalRWX(octalVal)))
+		} else {
+			topLine.WriteString(strings.Repeat(" ", len(g.text)))
+			botLine.WriteString(strings.Repeat(" ", len(g.text)))
+			rwxLine.WriteString(strings.Repeat(" ", len(g.text)))
+		}
+		digitLine.WriteString(g.text)
+	}
+
+	return "\n" + indent + topLine.String() + "\n" + indent + digitLine.String() + "\n" + indent + botLine.String() + "\n" + indent + rwxLine.String()
+}
+
 func (m model) formatHexWithBytes(hex string) string {
 	if len(hex) <= 2 {
 		return hex
@@ -536,6 +575,7 @@ func (m model) viewHelp() string {
 				{"F2", "Cycle bit size (8/16/32/64)"},
 				{"F3", "Toggle signed/unsigned"},
 				{"F4", "Cycle grouping (Off/Brackets/Spaces/Both)"},
+				{"P", "Toggle permissions view (octal/rwx)"},
 			},
 		},
 		{
@@ -624,6 +664,16 @@ func (m model) View() string {
 	s.WriteString("  ")
 	s.WriteString(keyHintStyle.Render("[F4]") + " Grouped: ")
 	s.WriteString(renderTabBar(groupedOpts, activeGrouped))
+	s.WriteString("\n")
+
+	permOpts := []string{"Off", "On"}
+	activePerm := "Off"
+	if m.permView {
+		activePerm = "On"
+	}
+	s.WriteString("  ")
+	s.WriteString(keyHintStyle.Render("[P]") + " Permissions: ")
+	s.WriteString(renderTabBar(permOpts, activePerm))
 	s.WriteString("\n\n")
 
 	// Range info
@@ -709,10 +759,20 @@ func (m model) renderGroupedInputDisplay() string {
 		return "\n" + cursor + "\n"
 	}
 
+	permActive := m.permView && m.groupMode != groupOff
+
 	switch m.inputType {
-	case "decimal", "octal":
+	case "decimal":
+		return m.renderBracketDecOct(prefix, digits, cursorInDigits)
+	case "octal":
+		if permActive {
+			return m.renderBracketOctalPerms(prefix, digits, cursorInDigits)
+		}
 		return m.renderBracketDecOct(prefix, digits, cursorInDigits)
 	case "binary":
+		if permActive {
+			return m.renderBracketBinaryPerms(prefix, digits, cursorInDigits)
+		}
 		return m.renderBracketBinary(prefix, digits, cursorInDigits)
 	case "hex":
 		return m.renderBracketHex(prefix, digits, cursorInDigits)
@@ -808,6 +868,28 @@ func groupDigits(digits string, groupSize int) []digitGroup {
 	return groups
 }
 
+func binaryGroupToOctal(bits string) int {
+	val := 0
+	for _, b := range bits {
+		val = val*2 + int(b-'0')
+	}
+	return val
+}
+
+func octalRWX(val int) string {
+	r, w, x := "-", "-", "-"
+	if val&4 != 0 {
+		r = "r"
+	}
+	if val&2 != 0 {
+		w = "w"
+	}
+	if val&1 != 0 {
+		x = "x"
+	}
+	return r + w + x
+}
+
 func (m model) renderBracketBinary(prefix, digits string, cursorInDigits int) string {
 	n := len(digits)
 	showBrackets := m.groupMode == groupBrackets || m.groupMode == groupBoth
@@ -899,6 +981,130 @@ func (m model) renderBracketBinary(prefix, digits string, cursorInDigits int) st
 	renderedDigitLine := applyCursor(digitLine.String(), cursorDisplayPos, m.focused)
 	if showBrackets {
 		return topLine.String() + "\n" + renderedDigitLine + "\n" + botLine.String()
+	}
+	return "\n" + renderedDigitLine + "\n"
+}
+
+func (m model) renderBracketBinaryPerms(prefix, digits string, cursorInDigits int) string {
+	n := len(digits)
+	showBrackets := m.groupMode == groupBrackets || m.groupMode == groupBoth
+	showSpaces := m.groupMode == groupSpaces || m.groupMode == groupBoth
+
+	groups := groupDigits(digits, 3)
+	pad := strings.Repeat(" ", len(prefix))
+
+	var topLine, digitLine, botLine, rwxLine strings.Builder
+	topLine.WriteString(pad)
+	digitLine.WriteString(prefix)
+	botLine.WriteString(pad)
+	rwxLine.WriteString(pad)
+
+	displayPos := len(prefix)
+	posMap := make([]int, n+1)
+	rawIdx := 0
+
+	for gi, g := range groups {
+		gLen := len(g.text)
+
+		if showSpaces && gi > 0 {
+			digitLine.WriteByte(' ')
+			topLine.WriteString(" ")
+			botLine.WriteString(" ")
+			rwxLine.WriteString(" ")
+			displayPos++
+		}
+
+		if showBrackets && g.full {
+			topLine.WriteString(separatorStyle.Render("╭─╮"))
+			octalVal := binaryGroupToOctal(g.text)
+			botLine.WriteString(separatorStyle.Render(fmt.Sprintf("╰%d╯", octalVal)))
+			rwxLine.WriteString(separatorStyle.Render(octalRWX(octalVal)))
+		} else {
+			topLine.WriteString(strings.Repeat(" ", gLen))
+			botLine.WriteString(strings.Repeat(" ", gLen))
+			rwxLine.WriteString(strings.Repeat(" ", gLen))
+		}
+
+		for i := 0; i < gLen; i++ {
+			posMap[rawIdx] = displayPos
+			digitLine.WriteByte(digits[rawIdx])
+			rawIdx++
+			displayPos++
+		}
+	}
+	posMap[n] = displayPos
+
+	cursorDisplayPos := 0
+	if cursorInDigits < 0 {
+		cursorDisplayPos = m.cursor
+	} else if cursorInDigits >= n {
+		cursorDisplayPos = posMap[n]
+	} else {
+		cursorDisplayPos = posMap[cursorInDigits]
+	}
+
+	renderedDigitLine := applyCursor(digitLine.String(), cursorDisplayPos, m.focused)
+	if showBrackets {
+		return topLine.String() + "\n" + renderedDigitLine + "\n" + botLine.String() + "\n" + rwxLine.String()
+	}
+	return "\n" + renderedDigitLine + "\n"
+}
+
+func (m model) renderBracketOctalPerms(prefix, digits string, cursorInDigits int) string {
+	n := len(digits)
+	showBrackets := m.groupMode == groupBrackets || m.groupMode == groupBoth
+	showSpaces := m.groupMode == groupSpaces || m.groupMode == groupBoth
+
+	var digitLine, binLine, rwxLine strings.Builder
+	if prefix != "" {
+		digitLine.WriteString(prefix)
+		binLine.WriteString(strings.Repeat(" ", len(prefix)))
+		rwxLine.WriteString(strings.Repeat(" ", len(prefix)))
+	}
+
+	displayPos := len(prefix)
+	posMap := make([]int, n+1)
+
+	for i := 0; i < n; i++ {
+		if showSpaces && i > 0 {
+			digitLine.WriteByte(' ')
+			binLine.WriteString(" ")
+			rwxLine.WriteString(" ")
+			displayPos++
+		}
+
+		// Center the digit: space + digit + space
+		digitLine.WriteByte(' ')
+		displayPos++
+		posMap[i] = displayPos
+		digitLine.WriteByte(digits[i])
+		displayPos++
+		digitLine.WriteByte(' ')
+		displayPos++
+
+		if showBrackets {
+			octalVal := int(digits[i] - '0')
+			binLine.WriteString(fmt.Sprintf("%03b", octalVal))
+			rwxLine.WriteString(octalRWX(octalVal))
+		} else {
+			binLine.WriteString("   ")
+			rwxLine.WriteString("   ")
+		}
+	}
+	posMap[n] = displayPos
+
+	cursorDisplayPos := 0
+	if cursorInDigits < 0 {
+		cursorDisplayPos = m.cursor
+	} else if cursorInDigits >= n {
+		cursorDisplayPos = posMap[n]
+	} else {
+		cursorDisplayPos = posMap[cursorInDigits]
+	}
+
+	renderedDigitLine := applyCursor(digitLine.String(), cursorDisplayPos, m.focused)
+	if showBrackets {
+		return "\n" + renderedDigitLine + "\n" + binLine.String() + "\n" + rwxLine.String()
 	}
 	return "\n" + renderedDigitLine + "\n"
 }
