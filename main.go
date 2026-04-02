@@ -419,10 +419,6 @@ func (m model) fromTwosComplement(num int64) int64 {
 }
 
 func (m model) formatBinaryWithBytes(binary string) string {
-	if len(binary) <= 8 {
-		return binary
-	}
-
 	indent := strings.Repeat(" ", 2) // 2-space indentation for all lines
 	var line1, line2, line3, line4 strings.Builder
 
@@ -791,18 +787,18 @@ func groupDigits(digits string, groupSize int) []digitGroup {
 }
 
 func (m model) renderBracketBinary(prefix, digits string, cursorInDigits int) string {
-	groups := groupDigits(digits, 8)
 	n := len(digits)
+	nibbleGroups := groupDigits(digits, 4)
 
-	hasFullGroup := false
-	for _, g := range groups {
+	hasFullNibble := false
+	for _, g := range nibbleGroups {
 		if g.full {
-			hasFullGroup = true
+			hasFullNibble = true
 			break
 		}
 	}
 
-	if !hasFullGroup {
+	if !hasFullNibble {
 		cursorDisplayPos := len(prefix) + cursorInDigits
 		if cursorInDigits < 0 {
 			cursorDisplayPos = m.cursor
@@ -812,56 +808,53 @@ func (m model) renderBracketBinary(prefix, digits string, cursorInDigits int) st
 		return applyCursor(prefix+digits, cursorDisplayPos, m.focused)
 	}
 
-	var topLine, digitLine, midLine, botLine strings.Builder
-	if prefix != "" {
-		digitLine.WriteString(prefix)
-		pad := strings.Repeat(" ", len(prefix))
-		topLine.WriteString(pad)
-		midLine.WriteString(pad)
-		botLine.WriteString(pad)
+	byteGroups := groupDigits(digits, 8)
+	hasFullByte := false
+	for _, g := range byteGroups {
+		if g.full {
+			hasFullByte = true
+			break
+		}
 	}
 
+	pad := strings.Repeat(" ", len(prefix))
+
+	// Top line: nibble brackets (╭──╮ per full nibble)
+	var topLine strings.Builder
+	topLine.WriteString(pad)
+	for _, g := range nibbleGroups {
+		if g.full {
+			topLine.WriteString(separatorStyle.Render("╭──╮"))
+		} else {
+			topLine.WriteString(strings.Repeat(" ", len(g.text)))
+		}
+	}
+
+	// Digit line
+	var digitLine strings.Builder
+	digitLine.WriteString(prefix)
 	displayPos := len(prefix)
 	posMap := make([]int, n+1)
-	rawIdx := 0
+	for i := 0; i < n; i++ {
+		posMap[i] = displayPos
+		digitLine.WriteByte(digits[i])
+		displayPos++
+	}
+	posMap[n] = displayPos
 
-	for gi, g := range groups {
-		if gi > 0 {
-			topLine.WriteString(" ")
-			digitLine.WriteString(" ")
-			midLine.WriteString(" ")
-			botLine.WriteString(" ")
-			displayPos++
-		}
-
-		gLen := len(g.text)
-
-		if g.full {
-			topLine.WriteString(separatorStyle.Render("╭──╮╭──╮"))
-			midLine.WriteString(separatorStyle.Render("│      │"))
-			hexVal := fmt.Sprintf("%02X", m.getNumFromBinary(g.text))
-			botLine.WriteString(separatorStyle.Render(fmt.Sprintf("╰──%s──╯", hexVal)))
-
-			for i := 0; i < gLen; i++ {
-				posMap[rawIdx] = displayPos
-				digitLine.WriteByte(g.text[i])
-				rawIdx++
-				displayPos++
-			}
-		} else {
-			topLine.WriteString(strings.Repeat(" ", gLen))
-			midLine.WriteString(strings.Repeat(" ", gLen))
-			botLine.WriteString(strings.Repeat(" ", gLen))
-
-			for i := 0; i < gLen; i++ {
-				posMap[rawIdx] = displayPos
-				digitLine.WriteByte(g.text[i])
-				rawIdx++
-				displayPos++
+	// Bottom line: byte brackets with hex (╰──XX──╯ per full byte)
+	var botLine strings.Builder
+	if hasFullByte {
+		botLine.WriteString(pad)
+		for _, g := range byteGroups {
+			if g.full {
+				hexVal := fmt.Sprintf("%02X", m.getNumFromBinary(g.text))
+				botLine.WriteString(separatorStyle.Render(fmt.Sprintf("╰──%s──╯", hexVal)))
+			} else {
+				botLine.WriteString(strings.Repeat(" ", len(g.text)))
 			}
 		}
 	}
-	posMap[n] = displayPos
 
 	cursorDisplayPos := 0
 	if cursorInDigits < 0 {
@@ -873,7 +866,11 @@ func (m model) renderBracketBinary(prefix, digits string, cursorInDigits int) st
 	}
 
 	renderedDigitLine := applyCursor(digitLine.String(), cursorDisplayPos, m.focused)
-	return topLine.String() + "\n" + renderedDigitLine + "\n" + midLine.String() + "\n" + botLine.String()
+	result := topLine.String() + "\n" + renderedDigitLine
+	if hasFullByte {
+		result += "\n" + botLine.String()
+	}
+	return result
 }
 
 func (m model) renderBracketHex(prefix, digits string, cursorInDigits int) string {
@@ -898,37 +895,19 @@ func (m model) renderBracketHex(prefix, digits string, cursorInDigits int) strin
 		return applyCursor(prefix+digits, cursorDisplayPos, m.focused)
 	}
 
-	var topLine, digitLine, midLine, botLine strings.Builder
+	var digitLine, botLine strings.Builder
 	if prefix != "" {
 		digitLine.WriteString(prefix)
-		pad := strings.Repeat(" ", len(prefix))
-		topLine.WriteString(pad)
-		midLine.WriteString(pad)
-		botLine.WriteString(pad)
+		botLine.WriteString(strings.Repeat(" ", len(prefix)))
 	}
 
 	displayPos := len(prefix)
 	posMap := make([]int, n+1)
 	rawIdx := 0
 
-	for gi, g := range groups {
-		if gi > 0 {
-			topLine.WriteString(" ")
-			digitLine.WriteString(" ")
-			midLine.WriteString(" ")
-			botLine.WriteString(" ")
-			displayPos++
-		}
-
+	for _, g := range groups {
 		if g.full {
-			topLine.WriteString(separatorStyle.Render("╭───╮"))
-			midLine.WriteString(separatorStyle.Render("│   │"))
-			byteVal, _ := strconv.ParseInt(g.text, 16, 64)
-			botLine.WriteString(separatorStyle.Render(fmt.Sprintf("╰%3d╯", byteVal)))
-
-			// Leading space in 5-char cell
-			digitLine.WriteByte(' ')
-			displayPos++
+			botLine.WriteString(separatorStyle.Render("╰╯"))
 
 			for i := 0; i < 2; i++ {
 				posMap[rawIdx] = displayPos
@@ -936,14 +915,8 @@ func (m model) renderBracketHex(prefix, digits string, cursorInDigits int) strin
 				rawIdx++
 				displayPos++
 			}
-
-			// Trailing padding (5 - 1 leading - 2 digits = 2)
-			digitLine.WriteString("  ")
-			displayPos += 2
 		} else {
 			gLen := len(g.text)
-			topLine.WriteString(strings.Repeat(" ", gLen))
-			midLine.WriteString(strings.Repeat(" ", gLen))
 			botLine.WriteString(strings.Repeat(" ", gLen))
 
 			for i := 0; i < gLen; i++ {
@@ -966,7 +939,7 @@ func (m model) renderBracketHex(prefix, digits string, cursorInDigits int) strin
 	}
 
 	renderedDigitLine := applyCursor(digitLine.String(), cursorDisplayPos, m.focused)
-	return topLine.String() + "\n" + renderedDigitLine + "\n" + midLine.String() + "\n" + botLine.String()
+	return renderedDigitLine + "\n" + botLine.String()
 }
 
 func main() {
