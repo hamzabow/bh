@@ -94,6 +94,9 @@ var (
 
 	separatorStyle = lipgloss.NewStyle().
 		Foreground(lipgloss.Color("240"))
+
+	permAnnotStyle = lipgloss.NewStyle().
+		Foreground(lipgloss.Color("109"))
 )
 
 func initialModel() model {
@@ -517,8 +520,8 @@ func (m model) formatBinaryPerms(binary string) string {
 		if g.full {
 			topLine.WriteString(separatorStyle.Render("╭─╮"))
 			octalVal := binaryGroupToOctal(g.text)
-			botLine.WriteString(separatorStyle.Render(fmt.Sprintf("╰%d╯", octalVal)))
-			rwxLine.WriteString(separatorStyle.Render(octalRWX(octalVal)))
+			botLine.WriteString(separatorStyle.Render("╰") + permAnnotStyle.Render(fmt.Sprintf("%d", octalVal)) + separatorStyle.Render("╯"))
+			rwxLine.WriteString(octalRWX(octalVal))
 		} else {
 			topLine.WriteString(strings.Repeat(" ", len(g.text)))
 			botLine.WriteString(strings.Repeat(" ", len(g.text)))
@@ -877,17 +880,18 @@ func binaryGroupToOctal(bits string) int {
 }
 
 func octalRWX(val int) string {
-	r, w, x := "-", "-", "-"
-	if val&4 != 0 {
-		r = "r"
+	var s strings.Builder
+	for _, ch := range []struct {
+		bit  int
+		char string
+	}{{4, "r"}, {2, "w"}, {1, "x"}} {
+		if val&ch.bit != 0 {
+			s.WriteString(permAnnotStyle.Render(ch.char))
+		} else {
+			s.WriteString(separatorStyle.Render("-"))
+		}
 	}
-	if val&2 != 0 {
-		w = "w"
-	}
-	if val&1 != 0 {
-		x = "x"
-	}
-	return r + w + x
+	return s.String()
 }
 
 func (m model) renderBracketBinary(prefix, digits string, cursorInDigits int) string {
@@ -1017,8 +1021,8 @@ func (m model) renderBracketBinaryPerms(prefix, digits string, cursorInDigits in
 		if showBrackets && g.full {
 			topLine.WriteString(separatorStyle.Render("╭─╮"))
 			octalVal := binaryGroupToOctal(g.text)
-			botLine.WriteString(separatorStyle.Render(fmt.Sprintf("╰%d╯", octalVal)))
-			rwxLine.WriteString(separatorStyle.Render(octalRWX(octalVal)))
+			botLine.WriteString(separatorStyle.Render("╰") + permAnnotStyle.Render(fmt.Sprintf("%d", octalVal)) + separatorStyle.Render("╯"))
+			rwxLine.WriteString(octalRWX(octalVal))
 		} else {
 			topLine.WriteString(strings.Repeat(" ", gLen))
 			botLine.WriteString(strings.Repeat(" ", gLen))
@@ -1084,7 +1088,7 @@ func (m model) renderBracketOctalPerms(prefix, digits string, cursorInDigits int
 
 		if showBrackets {
 			octalVal := int(digits[i] - '0')
-			binLine.WriteString(fmt.Sprintf("%03b", octalVal))
+			binLine.WriteString(permAnnotStyle.Render(fmt.Sprintf("%03b", octalVal)))
 			rwxLine.WriteString(octalRWX(octalVal))
 		} else {
 			binLine.WriteString("   ")
