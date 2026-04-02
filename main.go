@@ -709,16 +709,14 @@ func (m model) renderGroupedInputDisplay() string {
 		switch m.inputType {
 		case "binary":
 			return "\n" + cursor + "\n"
-		case "hex":
-			return "\n" + cursor + "\n"
 		default:
-			return cursor
+			return "\n" + cursor + "\n"
 		}
 	}
 
 	switch m.inputType {
 	case "decimal", "octal":
-		return m.renderSpacedGrouped(prefix, digits, cursorInDigits)
+		return m.renderBracketDecOct(prefix, digits, cursorInDigits)
 	case "binary":
 		return m.renderBracketBinary(prefix, digits, cursorInDigits)
 	case "hex":
@@ -727,27 +725,34 @@ func (m model) renderGroupedInputDisplay() string {
 	return applyCursor(m.input, m.cursor, m.focused)
 }
 
-func (m model) renderSpacedGrouped(prefix, digits string, cursorInDigits int) string {
+func (m model) renderBracketDecOct(prefix, digits string, cursorInDigits int) string {
+	groups := groupDigits(digits, 3)
 	n := len(digits)
-	groupSize := 3
-	firstGroupSize := n % groupSize
-	if firstGroupSize == 0 {
-		firstGroupSize = groupSize
+
+	var digitLine, botLine strings.Builder
+	if prefix != "" {
+		digitLine.WriteString(prefix)
+		botLine.WriteString(strings.Repeat(" ", len(prefix)))
 	}
 
-	var buf strings.Builder
-	buf.WriteString(prefix)
 	displayPos := len(prefix)
 	posMap := make([]int, n+1)
+	rawIdx := 0
 
-	for i := 0; i < n; i++ {
-		if i > 0 && (i == firstGroupSize || (i > firstGroupSize && (i-firstGroupSize)%groupSize == 0)) {
-			buf.WriteByte(' ')
+	for _, g := range groups {
+		gLen := len(g.text)
+		if g.full {
+			botLine.WriteString(separatorStyle.Render("╰─╯"))
+		} else {
+			botLine.WriteString(strings.Repeat(" ", gLen))
+		}
+
+		for i := 0; i < gLen; i++ {
+			posMap[rawIdx] = displayPos
+			digitLine.WriteByte(g.text[i])
+			rawIdx++
 			displayPos++
 		}
-		posMap[i] = displayPos
-		buf.WriteByte(digits[i])
-		displayPos++
 	}
 	posMap[n] = displayPos
 
@@ -760,7 +765,8 @@ func (m model) renderSpacedGrouped(prefix, digits string, cursorInDigits int) st
 		cursorDisplayPos = posMap[cursorInDigits]
 	}
 
-	return applyCursor(buf.String(), cursorDisplayPos, m.focused)
+	renderedDigitLine := applyCursor(digitLine.String(), cursorDisplayPos, m.focused)
+	return "\n" + renderedDigitLine + "\n" + botLine.String()
 }
 
 type digitGroup struct {
