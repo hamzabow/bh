@@ -1,6 +1,6 @@
 ---
 title: Input Digit Grouping
-status: not started
+status: done
 priority: medium
 category: ui
 ---

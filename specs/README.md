@@ -14,4 +14,4 @@
 | [go install Support](go-install-support.md) | not started | medium |
 | [Release Binaries](release-binaries.md) | not started | low |
 | [Tab Bar Mode Display](tab-bar-modes.md) | done | medium |
-| [Input Digit Grouping](input-grouping.md) | not started | medium |
+| [Input Digit Grouping](input-grouping.md) | done | medium |
