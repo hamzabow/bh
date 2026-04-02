@@ -37,14 +37,14 @@ var (
 		Foreground(lipgloss.Color("255")).
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color("62")).
-		Padding(1, 2).
+		Padding(0, 2).
 		Width(50)
 
 	focusedInputStyle = lipgloss.NewStyle().
 		Foreground(lipgloss.Color("255")).
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color("205")).
-		Padding(1, 2).
+		Padding(0, 2).
 		Width(50)
 
 	outputStyle = lipgloss.NewStyle().
@@ -635,7 +635,7 @@ func (m model) View() string {
 	s.WriteString("\n\n")
 
 	var inputDisplay string
-	if m.groupedInput && len(m.input) > 0 {
+	if m.groupedInput {
 		inputDisplay = m.renderGroupedInputDisplay()
 	} else {
 		inputDisplay = applyCursor(m.input, m.cursor, m.focused)
@@ -701,12 +701,20 @@ func (m model) renderGroupedInputDisplay() string {
 		digits = m.input[1:]
 	}
 
-	if len(digits) == 0 {
-		return applyCursor(m.input, m.cursor, m.focused)
-	}
-
 	prefix := m.input[:prefixLen]
 	cursorInDigits := m.cursor - prefixLen
+
+	if len(digits) == 0 {
+		cursor := applyCursor(m.input, m.cursor, m.focused)
+		switch m.inputType {
+		case "binary":
+			return "\n" + cursor + "\n"
+		case "hex":
+			return "\n" + cursor + "\n"
+		default:
+			return cursor
+		}
+	}
 
 	switch m.inputType {
 	case "decimal", "octal":
@@ -790,32 +798,7 @@ func (m model) renderBracketBinary(prefix, digits string, cursorInDigits int) st
 	n := len(digits)
 	nibbleGroups := groupDigits(digits, 4)
 
-	hasFullNibble := false
-	for _, g := range nibbleGroups {
-		if g.full {
-			hasFullNibble = true
-			break
-		}
-	}
-
-	if !hasFullNibble {
-		cursorDisplayPos := len(prefix) + cursorInDigits
-		if cursorInDigits < 0 {
-			cursorDisplayPos = m.cursor
-		} else if cursorInDigits >= n {
-			cursorDisplayPos = len(prefix) + n
-		}
-		return applyCursor(prefix+digits, cursorDisplayPos, m.focused)
-	}
-
 	byteGroups := groupDigits(digits, 8)
-	hasFullByte := false
-	for _, g := range byteGroups {
-		if g.full {
-			hasFullByte = true
-			break
-		}
-	}
 
 	pad := strings.Repeat(" ", len(prefix))
 
@@ -844,15 +827,13 @@ func (m model) renderBracketBinary(prefix, digits string, cursorInDigits int) st
 
 	// Bottom line: byte brackets with hex (╰──XX──╯ per full byte)
 	var botLine strings.Builder
-	if hasFullByte {
-		botLine.WriteString(pad)
-		for _, g := range byteGroups {
-			if g.full {
-				hexVal := fmt.Sprintf("%02X", m.getNumFromBinary(g.text))
-				botLine.WriteString(separatorStyle.Render(fmt.Sprintf("╰──%s──╯", hexVal)))
-			} else {
-				botLine.WriteString(strings.Repeat(" ", len(g.text)))
-			}
+	botLine.WriteString(pad)
+	for _, g := range byteGroups {
+		if g.full {
+			hexVal := fmt.Sprintf("%02X", m.getNumFromBinary(g.text))
+			botLine.WriteString(separatorStyle.Render(fmt.Sprintf("╰──%s──╯", hexVal)))
+		} else {
+			botLine.WriteString(strings.Repeat(" ", len(g.text)))
 		}
 	}
 
@@ -866,34 +847,12 @@ func (m model) renderBracketBinary(prefix, digits string, cursorInDigits int) st
 	}
 
 	renderedDigitLine := applyCursor(digitLine.String(), cursorDisplayPos, m.focused)
-	result := topLine.String() + "\n" + renderedDigitLine
-	if hasFullByte {
-		result += "\n" + botLine.String()
-	}
-	return result
+	return topLine.String() + "\n" + renderedDigitLine + "\n" + botLine.String()
 }
 
 func (m model) renderBracketHex(prefix, digits string, cursorInDigits int) string {
 	groups := groupDigits(digits, 2)
 	n := len(digits)
-
-	hasFullGroup := false
-	for _, g := range groups {
-		if g.full {
-			hasFullGroup = true
-			break
-		}
-	}
-
-	if !hasFullGroup {
-		cursorDisplayPos := len(prefix) + cursorInDigits
-		if cursorInDigits < 0 {
-			cursorDisplayPos = m.cursor
-		} else if cursorInDigits >= n {
-			cursorDisplayPos = len(prefix) + n
-		}
-		return applyCursor(prefix+digits, cursorDisplayPos, m.focused)
-	}
 
 	var digitLine, botLine strings.Builder
 	if prefix != "" {
@@ -939,7 +898,7 @@ func (m model) renderBracketHex(prefix, digits string, cursorInDigits int) strin
 	}
 
 	renderedDigitLine := applyCursor(digitLine.String(), cursorDisplayPos, m.focused)
-	return renderedDigitLine + "\n" + botLine.String()
+	return "\n" + renderedDigitLine + "\n" + botLine.String()
 }
 
 func main() {
