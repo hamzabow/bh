@@ -10,6 +10,15 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+type groupingMode int
+
+const (
+	groupOff      groupingMode = iota
+	groupBrackets
+	groupSpaces
+	groupBoth
+)
+
 type model struct {
 	input      string
 	inputType  string
@@ -21,10 +30,10 @@ type model struct {
 	octal      string
 	focused    bool
 	bitSize    int
-	signedMode   bool
-	overflow     bool
-	showHelp     bool
-	groupedInput bool
+	signedMode bool
+	overflow   bool
+	showHelp   bool
+	groupMode  groupingMode
 }
 
 var (
@@ -193,7 +202,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m = m.updateConversions()
 
 		case "f4":
-			m.groupedInput = !m.groupedInput
+			m.groupMode = (m.groupMode + 1) % 4
 
 		case "backspace":
 			if len(m.input) > 0 && m.cursor > 0 {
@@ -526,7 +535,7 @@ func (m model) viewHelp() string {
 				{"F1", "Cycle input base (Dec/Hex/Oct/Bin)"},
 				{"F2", "Cycle bit size (8/16/32/64)"},
 				{"F3", "Toggle signed/unsigned"},
-				{"F4", "Toggle input digit grouping"},
+				{"F4", "Cycle grouping (Off/Brackets/Spaces/Both)"},
 			},
 		},
 		{
@@ -608,11 +617,10 @@ func (m model) View() string {
 	s.WriteString(renderTabBar(signedOpts, activeSigned))
 	s.WriteString("\n")
 
-	groupedOpts := []string{"Off", "On"}
-	activeGrouped := "Off"
-	if m.groupedInput {
-		activeGrouped = "On"
-	}
+	groupedOpts := []string{"Off", "Brackets", "Spaces", "Both"}
+	activeGrouped := map[groupingMode]string{
+		groupOff: "Off", groupBrackets: "Brackets", groupSpaces: "Spaces", groupBoth: "Both",
+	}[m.groupMode]
 	s.WriteString("  ")
 	s.WriteString(keyHintStyle.Render("[F4]") + " Grouped: ")
 	s.WriteString(renderTabBar(groupedOpts, activeGrouped))
@@ -634,19 +642,11 @@ func (m model) View() string {
 	s.WriteString(helpStyle.Render(rangeInfo))
 	s.WriteString("\n\n")
 
-	var inputDisplay string
-	if m.groupedInput {
-		inputDisplay = m.renderGroupedInputDisplay()
-	} else {
-		inputDisplay = applyCursor(m.input, m.cursor, m.focused)
-	}
+	inputDisplay := m.renderGroupedInputDisplay()
 
-	currentInputStyle := inputStyle
+	currentInputStyle := inputStyle.Width(80)
 	if m.focused {
-		currentInputStyle = focusedInputStyle
-	}
-	if m.groupedInput {
-		currentInputStyle = currentInputStyle.Width(80)
+		currentInputStyle = focusedInputStyle.Width(80)
 	}
 	s.WriteString(currentInputStyle.Render(inputDisplay))
 	s.WriteString("\n\n")
@@ -706,12 +706,7 @@ func (m model) renderGroupedInputDisplay() string {
 
 	if len(digits) == 0 {
 		cursor := applyCursor(m.input, m.cursor, m.focused)
-		switch m.inputType {
-		case "binary":
-			return "\n" + cursor + "\n"
-		default:
-			return "\n" + cursor + "\n"
-		}
+		return "\n" + cursor + "\n"
 	}
 
 	switch m.inputType {
@@ -728,6 +723,8 @@ func (m model) renderGroupedInputDisplay() string {
 func (m model) renderBracketDecOct(prefix, digits string, cursorInDigits int) string {
 	groups := groupDigits(digits, 3)
 	n := len(digits)
+	showBrackets := m.groupMode == groupBrackets || m.groupMode == groupBoth
+	showSpaces := m.groupMode == groupSpaces || m.groupMode == groupBoth
 
 	var digitLine, botLine strings.Builder
 	if prefix != "" {
@@ -739,9 +736,17 @@ func (m model) renderBracketDecOct(prefix, digits string, cursorInDigits int) st
 	posMap := make([]int, n+1)
 	rawIdx := 0
 
-	for _, g := range groups {
+	for gi, g := range groups {
 		gLen := len(g.text)
-		if g.full {
+
+		// Add space between groups
+		if showSpaces && gi > 0 {
+			digitLine.WriteByte(' ')
+			botLine.WriteString(" ")
+			displayPos++
+		}
+
+		if showBrackets && g.full {
 			botLine.WriteString(separatorStyle.Render("╰─╯"))
 		} else {
 			botLine.WriteString(strings.Repeat(" ", gLen))
@@ -766,7 +771,10 @@ func (m model) renderBracketDecOct(prefix, digits string, cursorInDigits int) st
 	}
 
 	renderedDigitLine := applyCursor(digitLine.String(), cursorDisplayPos, m.focused)
-	return "\n" + renderedDigitLine + "\n" + botLine.String()
+	if showBrackets {
+		return "\n" + renderedDigitLine + "\n" + botLine.String()
+	}
+	return "\n" + renderedDigitLine + "\n" + strings.Repeat(" ", len(prefix))
 }
 
 type digitGroup struct {
@@ -802,8 +810,10 @@ func groupDigits(digits string, groupSize int) []digitGroup {
 
 func (m model) renderBracketBinary(prefix, digits string, cursorInDigits int) string {
 	n := len(digits)
-	nibbleGroups := groupDigits(digits, 4)
+	showBrackets := m.groupMode == groupBrackets || m.groupMode == groupBoth
+	showSpaces := m.groupMode == groupSpaces || m.groupMode == groupBoth
 
+	nibbleGroups := groupDigits(digits, 4)
 	byteGroups := groupDigits(digits, 8)
 
 	pad := strings.Repeat(" ", len(prefix))
@@ -811,35 +821,69 @@ func (m model) renderBracketBinary(prefix, digits string, cursorInDigits int) st
 	// Top line: nibble brackets (╭──╮ per full nibble)
 	var topLine strings.Builder
 	topLine.WriteString(pad)
-	for _, g := range nibbleGroups {
-		if g.full {
-			topLine.WriteString(separatorStyle.Render("╭──╮"))
-		} else {
-			topLine.WriteString(strings.Repeat(" ", len(g.text)))
-		}
-	}
 
 	// Digit line
 	var digitLine strings.Builder
 	digitLine.WriteString(prefix)
 	displayPos := len(prefix)
 	posMap := make([]int, n+1)
-	for i := 0; i < n; i++ {
-		posMap[i] = displayPos
-		digitLine.WriteByte(digits[i])
-		displayPos++
+
+	// Bottom line
+	var botLine strings.Builder
+	botLine.WriteString(pad)
+
+
+	// Build digit line and top line together (nibble-based iteration)
+	nibbleIdx := 0 // tracks position in digits for nibble spacing
+	for gi, g := range nibbleGroups {
+		gLen := len(g.text)
+
+		// Add space between nibble groups
+		if showSpaces && gi > 0 {
+			digitLine.WriteByte(' ')
+			topLine.WriteString(" ")
+			displayPos++
+		}
+
+		if showBrackets && g.full {
+			topLine.WriteString(separatorStyle.Render("╭──╮"))
+		} else {
+			topLine.WriteString(strings.Repeat(" ", gLen))
+		}
+
+		for i := 0; i < gLen; i++ {
+			posMap[nibbleIdx] = displayPos
+			digitLine.WriteByte(digits[nibbleIdx])
+			nibbleIdx++
+			displayPos++
+		}
 	}
 	posMap[n] = displayPos
 
-	// Bottom line: byte brackets with hex (╰──XX──╯ per full byte)
-	var botLine strings.Builder
-	botLine.WriteString(pad)
-	for _, g := range byteGroups {
-		if g.full {
-			hexVal := fmt.Sprintf("%02X", m.getNumFromBinary(g.text))
-			botLine.WriteString(separatorStyle.Render(fmt.Sprintf("╰──%s──╯", hexVal)))
-		} else {
-			botLine.WriteString(strings.Repeat(" ", len(g.text)))
+	// Build bottom line (byte-based)
+	if showBrackets {
+		// We need to figure out how wide each byte group is in display chars
+		// In Both mode, a full byte = 8 digits + 1 internal nibble space = 9 display chars
+		// In Brackets mode, a full byte = 8 digits
+		for gi, g := range byteGroups {
+			gLen := len(g.text)
+			if showSpaces && gi > 0 {
+				botLine.WriteString(" ")
+			}
+			if g.full {
+				hexVal := fmt.Sprintf("%02X", m.getNumFromBinary(g.text))
+				if showSpaces {
+					botLine.WriteString(separatorStyle.Render(fmt.Sprintf("╰───%s──╯", hexVal)))
+				} else {
+					botLine.WriteString(separatorStyle.Render(fmt.Sprintf("╰──%s──╯", hexVal)))
+				}
+			} else {
+				displayWidth := gLen
+				if showSpaces && gLen > 4 {
+					displayWidth = gLen + (gLen-1)/4
+				}
+				botLine.WriteString(strings.Repeat(" ", displayWidth))
+			}
 		}
 	}
 
@@ -853,12 +897,17 @@ func (m model) renderBracketBinary(prefix, digits string, cursorInDigits int) st
 	}
 
 	renderedDigitLine := applyCursor(digitLine.String(), cursorDisplayPos, m.focused)
-	return topLine.String() + "\n" + renderedDigitLine + "\n" + botLine.String()
+	if showBrackets {
+		return topLine.String() + "\n" + renderedDigitLine + "\n" + botLine.String()
+	}
+	return "\n" + renderedDigitLine + "\n"
 }
 
 func (m model) renderBracketHex(prefix, digits string, cursorInDigits int) string {
 	groups := groupDigits(digits, 2)
 	n := len(digits)
+	showBrackets := m.groupMode == groupBrackets || m.groupMode == groupBoth
+	showSpaces := m.groupMode == groupSpaces || m.groupMode == groupBoth
 
 	var digitLine, botLine strings.Builder
 	if prefix != "" {
@@ -870,26 +919,27 @@ func (m model) renderBracketHex(prefix, digits string, cursorInDigits int) strin
 	posMap := make([]int, n+1)
 	rawIdx := 0
 
-	for _, g := range groups {
-		if g.full {
+	for gi, g := range groups {
+		gLen := len(g.text)
+
+		// Add space between groups
+		if showSpaces && gi > 0 {
+			digitLine.WriteByte(' ')
+			botLine.WriteString(" ")
+			displayPos++
+		}
+
+		if showBrackets && g.full {
 			botLine.WriteString(separatorStyle.Render("╰╯"))
-
-			for i := 0; i < 2; i++ {
-				posMap[rawIdx] = displayPos
-				digitLine.WriteByte(g.text[i])
-				rawIdx++
-				displayPos++
-			}
 		} else {
-			gLen := len(g.text)
 			botLine.WriteString(strings.Repeat(" ", gLen))
+		}
 
-			for i := 0; i < gLen; i++ {
-				posMap[rawIdx] = displayPos
-				digitLine.WriteByte(g.text[i])
-				rawIdx++
-				displayPos++
-			}
+		for i := 0; i < gLen; i++ {
+			posMap[rawIdx] = displayPos
+			digitLine.WriteByte(g.text[i])
+			rawIdx++
+			displayPos++
 		}
 	}
 	posMap[n] = displayPos
@@ -904,7 +954,10 @@ func (m model) renderBracketHex(prefix, digits string, cursorInDigits int) strin
 	}
 
 	renderedDigitLine := applyCursor(digitLine.String(), cursorDisplayPos, m.focused)
-	return "\n" + renderedDigitLine + "\n" + botLine.String()
+	if showBrackets {
+		return "\n" + renderedDigitLine + "\n" + botLine.String()
+	}
+	return "\n" + renderedDigitLine + "\n" + strings.Repeat(" ", len(prefix))
 }
 
 func main() {
