@@ -16,4 +16,5 @@
 | [Tab Bar Mode Display](tab-bar-modes.md) | done | medium |
 | [Input Digit Grouping](input-grouping.md) | done | medium |
 | [Grouping Display Modes](grouping-modes.md) | done | medium |
+| [Permissions View (Unix rwx)](permissions-view.md) | not started | medium |
 | [Testing](testing.md) | not started | high |
