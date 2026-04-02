@@ -124,7 +124,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+c", "q":
 			return m, tea.Quit
 
-		case "?":
+		case "h":
 			m.showHelp = !m.showHelp
 			return m, nil
 		}
@@ -171,7 +171,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m = m.updateConversions()
 			}
 
-		case "f1":
+		case "t":
 			switch m.inputType {
 			case "decimal":
 				m.inputType = "hex"
@@ -188,7 +188,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.hex, m.binary, m.decimal, m.octal = "", "", "", ""
 			m.overflow = false
 
-		case "f2":
+		case "w":
 			switch m.bitSize {
 			case 8:
 				m.bitSize = 16
@@ -201,11 +201,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			m = m.updateConversions()
 
-		case "f3":
+		case "s":
 			m.signedMode = !m.signedMode
 			m = m.updateConversions()
 
-		case "f4":
+		case "g":
 			m.groupMode = (m.groupMode + 1) % 4
 
 		case "p":
@@ -574,10 +574,10 @@ func (m model) viewHelp() string {
 		{
 			"Modes",
 			[][2]string{
-				{"F1", "Cycle input base (Dec/Hex/Oct/Bin)"},
-				{"F2", "Cycle bit size (8/16/32/64)"},
-				{"F3", "Toggle signed/unsigned"},
-				{"F4", "Cycle grouping (Off/Brackets/Spaces/Both)"},
+				{"T", "Cycle input base (Dec/Hex/Oct/Bin)"},
+				{"W", "Cycle bit size (8/16/32/64)"},
+				{"S", "Toggle signed/unsigned"},
+				{"G", "Cycle grouping (Off/Brackets/Spaces/Both)"},
 				{"P", "Toggle permissions view (octal/rwx)"},
 			},
 		},
@@ -600,7 +600,7 @@ func (m model) viewHelp() string {
 		{
 			"General",
 			[][2]string{
-				{"?", "Toggle this help page"},
+				{"H", "Toggle this help page"},
 				{"q, Ctrl+C", "Quit"},
 			},
 		},
@@ -642,7 +642,7 @@ func (m model) View() string {
 	inputTypes := []string{"Decimal", "Hex", "Octal", "Binary"}
 	activeInput := map[string]string{"decimal": "Decimal", "hex": "Hex", "octal": "Octal", "binary": "Binary"}[m.inputType]
 	s.WriteString("  ")
-	s.WriteString(keyHintStyle.Render("[F1]")+" ")
+	s.WriteString(keyHintStyle.Render("[T]")+" ")
 	s.WriteString(renderTabBar(inputTypes, activeInput))
 	s.WriteString("\n")
 
@@ -652,11 +652,11 @@ func (m model) View() string {
 	signedOpts := []string{"Unsigned", "Signed"}
 	activeSigned := map[bool]string{true: "Signed", false: "Unsigned"}[m.signedMode]
 	s.WriteString("  ")
-	s.WriteString(keyHintStyle.Render("[F2]")+" ")
+	s.WriteString(keyHintStyle.Render("[W]")+" ")
 	s.WriteString(renderTabBar(bitSizes, activeBit))
 	s.WriteString("\n")
 	s.WriteString("  ")
-	s.WriteString(keyHintStyle.Render("[F3]")+" ")
+	s.WriteString(keyHintStyle.Render("[S]")+" ")
 	s.WriteString(renderTabBar(signedOpts, activeSigned))
 	s.WriteString("\n")
 
@@ -665,7 +665,7 @@ func (m model) View() string {
 		groupOff: "Off", groupBrackets: "Brackets", groupSpaces: "Spaces", groupBoth: "Both",
 	}[m.groupMode]
 	s.WriteString("  ")
-	s.WriteString(keyHintStyle.Render("[F4]") + " Grouped: ")
+	s.WriteString(keyHintStyle.Render("[G]") + " Grouped: ")
 	s.WriteString(renderTabBar(groupedOpts, activeGrouped))
 	s.WriteString("\n")
 
