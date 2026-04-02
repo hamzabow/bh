@@ -675,7 +675,7 @@ func (m model) View() string {
 		activePerm = "On"
 	}
 	s.WriteString("  ")
-	s.WriteString(keyHintStyle.Render("[P]") + " Permissions: ")
+	s.WriteString(keyHintStyle.Render("[P]") + "  Unix Permissions: ")
 	s.WriteString(renderTabBar(permOpts, activePerm))
 	s.WriteString("\n\n")
 
