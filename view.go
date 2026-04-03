@@ -79,7 +79,7 @@ func (m model) viewHelp() string {
 		s.WriteString("\n")
 	}
 
-	s.WriteString(helpStyle.Render("Press ? to return"))
+	s.WriteString(helpStyle.Render("Press h to return"))
 
 	return s.String()
 }

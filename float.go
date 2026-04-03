@@ -330,7 +330,7 @@ func (m model) viewFloat() string {
 		s.WriteString("\n\n")
 	}
 
-	s.WriteString(helpStyle.Render("q: Quit · f: Integer mode · ?: Help"))
+	s.WriteString(helpStyle.Render("q: Quit · f: Integer mode · h: Help"))
 
 	return s.String()
 }

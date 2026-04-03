@@ -399,7 +399,7 @@ func (m model) viewInteger() string {
 		s.WriteString("\n\n")
 	}
 
-	s.WriteString(helpStyle.Render("q: Quit · ?: Help"))
+	s.WriteString(helpStyle.Render("q: Quit · h: Help"))
 
 	return s.String()
 }
