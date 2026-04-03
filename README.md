@@ -33,7 +33,7 @@ Run the application:
 
 ### Controls
 
-- **F**: Toggle float mode (IEEE 754)
+- **Ctrl+F**: Toggle float mode (IEEE 754)
 - **T**: Cycle input base (Decimal → Hex → Octal → Binary)
 - **W**: Cycle bit size (8 → 16 → 32 → 64)
 - **S**: Toggle Signed/Unsigned mode

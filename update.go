@@ -13,7 +13,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.showHelp = !m.showHelp
 			return m, nil
 
-		case "f":
+		case "ctrl+f":
 			if !m.showHelp {
 				m.floatMode = !m.floatMode
 				m.input = ""

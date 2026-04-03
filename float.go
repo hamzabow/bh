@@ -256,19 +256,19 @@ func (m model) buildFloatBinaryDisplay(signBin, expBin, manBin string, expVal, b
 	expTopWidth := len(expBin)
 	manTopWidth := len(manBin)
 
-	signTop := signStyle.Render("╭╮")
-	expTop := exponentStyle.Render("╭" + strings.Repeat("─", expTopWidth-2) + "╮")
-	manTop := mantissaStyle.Render("╭" + strings.Repeat("─", manTopWidth-2) + "╮")
+	signTop := signStyle.Render("╭─╮")
+	expTop := exponentStyle.Render("╭" + strings.Repeat("─", expTopWidth) + "╮")
+	manTop := mantissaStyle.Render("╭" + strings.Repeat("─", manTopWidth) + "╮")
 
-	// Bit values
-	signBits := signStyle.Render(signBin)
-	expBits := exponentStyle.Render(expBin)
-	manBits := mantissaStyle.Render(manBin)
+	// Bit values (sign digit centered in 3-char bracket)
+	signBits := signStyle.Render(" " + signBin + " ")
+	expBits := exponentStyle.Render(" " + expBin + " ")
+	manBits := mantissaStyle.Render(" " + manBin + " ")
 
 	// Bottom brackets
-	signBot := signStyle.Render("╰╯")
-	expBot := exponentStyle.Render("╰" + strings.Repeat("─", expTopWidth-2) + "╯")
-	manBot := mantissaStyle.Render("╰" + strings.Repeat("─", manTopWidth-2) + "╯")
+	signBot := signStyle.Render("╰─╯")
+	expBot := exponentStyle.Render("╰" + strings.Repeat("─", expTopWidth) + "╯")
+	manBot := mantissaStyle.Render("╰" + strings.Repeat("─", manTopWidth) + "╯")
 
 	// Decoded info
 	var decoded string
@@ -283,12 +283,17 @@ func (m model) buildFloatBinaryDisplay(signBin, expBin, manBin string, expVal, b
 	// Build with spacing
 	gap := "   "
 
+	// Align labels above brackets (sign bracket=3 chars, exp bracket=expTopWidth+2 chars)
+	signLabelPad := 3
+	expLabelPad := expTopWidth + 2
+
 	var s strings.Builder
-	s.WriteString(indent + signLabel + gap + expLabel + strings.Repeat(" ", expTopWidth-len("Exponent")+3) + manLabel + "\n")
+	s.WriteString(indent + signLabel + strings.Repeat(" ", signLabelPad-4+len(gap)) + expLabel + strings.Repeat(" ", expLabelPad-8+len(gap)) + manLabel + "\n")
 	s.WriteString(indent + signTop + gap + expTop + gap + manTop + "\n")
 	s.WriteString(indent + signBits + gap + expBits + gap + manBits + "\n")
 	s.WriteString(indent + signBot + gap + expBot + gap + manBot + "\n")
-	s.WriteString(indent + "     " + decoded)
+	// Decoded exponent info, aligned under exponent bracket
+	s.WriteString(indent + strings.Repeat(" ", 3+len(gap)) + decoded + "\n")
 
 	return s.String()
 }
@@ -330,7 +335,7 @@ func (m model) viewFloat() string {
 		s.WriteString("\n\n")
 	}
 
-	s.WriteString(helpStyle.Render("q: Quit · f: Integer mode · h: Help"))
+	s.WriteString(helpStyle.Render("q: Quit · Ctrl+F: Integer mode · h: Help"))
 
 	return s.String()
 }
