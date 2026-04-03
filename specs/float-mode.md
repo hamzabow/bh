@@ -1,6 +1,6 @@
 ---
 title: Float Mode (IEEE 754)
-status: not started
+status: done
 priority: high
 category: feature
 ---

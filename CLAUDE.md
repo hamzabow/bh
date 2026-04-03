@@ -13,7 +13,13 @@ go build          # build the binary
 
 ## Code structure
 
-- `main.go` — the entire application (single-file TUI)
+- `main.go` — model struct, types, initialization, entry point
+- `styles.go` — all lipgloss style definitions
+- `common.go` — shared utilities (tab bar, cursor, digit grouping)
+- `update.go` — top-level Update() dispatcher
+- `view.go` — top-level View() dispatcher and help page
+- `integer.go` — integer mode: key handling, conversions, rendering
+- `float.go` — IEEE 754 float mode: key handling, parsing, rendering
 
 ## Specs directory
 

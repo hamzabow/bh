@@ -3,7 +3,7 @@
 | Feature | Status | Priority |
 |---------|--------|----------|
 | [Octal Base](octal-base.md) | done | - |
-| [Float Mode (IEEE 754)](float-mode.md) | not started | high |
+| [Float Mode (IEEE 754)](float-mode.md) | done | high |
 | [Clipboard Copy](clipboard-copy.md) | not started | medium |
 | [CLI Arguments](cli-arguments.md) | not started | medium |
 | [Negative Number Input](negative-input.md) | done | medium |
