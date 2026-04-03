@@ -399,7 +399,8 @@ func (m model) viewInteger() string {
 	if m.focused {
 		currentInputStyle = focusedInputStyle.Width(80)
 	}
-	s.WriteString(currentInputStyle.Render(inputDisplay))
+	label := inputTypeLabel(m.inputType)
+	s.WriteString(renderStyledBorder(inputDisplay, label, currentInputStyle))
 	s.WriteString("\n\n")
 
 	if m.err != nil {
@@ -424,7 +425,7 @@ func (m model) viewInteger() string {
 		s.WriteString("\n\n")
 	}
 
-	s.WriteString(helpStyle.Render("q: Quit · h: Help"))
+	s.WriteString(helpStyle.Render("q: Quit · Ctrl+F: Float mode · h: Help"))
 
 	return s.String()
 }

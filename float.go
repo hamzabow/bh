@@ -442,7 +442,7 @@ func (m model) viewFloat() string {
 	if m.focused {
 		currentInputStyle = focusedInputStyle.Width(80)
 	}
-	s.WriteString(currentInputStyle.Render(inputDisplay))
+	s.WriteString(renderStyledBorder(inputDisplay, "Decimal", currentInputStyle))
 	s.WriteString("\n\n")
 
 	if m.err != nil {
