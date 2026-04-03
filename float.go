@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 func (m model) updateFloatKeys(msg tea.KeyMsg) model {
@@ -244,33 +245,152 @@ func (m model) formatFloatBinary64(bits uint64) string {
 	return m.buildFloatBinaryDisplay(signBin, expBin, manBin, int(exp), 1023)
 }
 
+// renderFieldBits renders a binary field with nibble brackets on top (4-bit),
+// byte brackets on bottom (8-bit), and nibble-spaced bits in between.
+// Partial leading groups get full-width brackets with leading positions empty.
+// Returns 3 lines: top brackets, bits, bottom brackets.
+func renderFieldBits(bits string, style lipgloss.Style) (top, bitLine, bot string) {
+	nibbles := groupDigits(bits, 4)
+	bytes := groupDigits(bits, 8)
+
+	var topB, bitB, botB strings.Builder
+
+	// Top + bit lines: nibble-based
+	for gi, g := range nibbles {
+		gLen := len(g.text)
+		if gi > 0 {
+			topB.WriteString(" ")
+			bitB.WriteString(" ")
+		}
+
+		topB.WriteString(separatorStyle.Render("╭──╮"))
+
+		if g.full {
+			bitB.WriteString(style.Render(g.text))
+		} else {
+			pad := 4 - gLen
+			bitB.WriteString(strings.Repeat(" ", pad))
+			bitB.WriteString(style.Render(g.text))
+		}
+	}
+
+	// Bottom line: byte-based
+	for gi, g := range bytes {
+		gLen := len(g.text)
+		if gi > 0 {
+			botB.WriteString(" ")
+		}
+
+		// Display width: digits + internal nibble spaces
+		// A full byte = "xxxx xxxx" = 9 chars; partial depends on size
+		nibbleSpaces := 0
+		if gLen > 4 {
+			nibbleSpaces = 1
+		}
+		// Partial leading group is padded to full nibble width on display
+		displayDigits := gLen
+		if gLen <= 4 && !g.full {
+			displayDigits = 4
+		} else if gLen > 4 && !g.full {
+			// Partial byte: first nibble padded to 4, rest as-is
+			firstNibble := gLen % 4
+			if firstNibble == 0 {
+				firstNibble = 4
+			}
+			displayDigits = 4 + (gLen - firstNibble) // pad first nibble to 4
+			nibbleSpaces = 1
+		}
+		displayWidth := displayDigits + nibbleSpaces
+
+		botB.WriteString(separatorStyle.Render("╰" + strings.Repeat("─", displayWidth-2) + "╯"))
+	}
+
+	return topB.String(), bitB.String(), botB.String()
+}
+
+// fieldDisplayWidth returns the visual width of a nibble-grouped binary field.
+// Partial leading groups are expanded to full 4-char nibble width.
+func fieldDisplayWidth(bits string) int {
+	nibbles := groupDigits(bits, 4)
+	w := 0
+	for i, g := range nibbles {
+		if i > 0 {
+			w++ // nibble separator space
+		}
+		if g.full {
+			w += len(g.text)
+		} else {
+			w += 4 // partial group padded to full nibble width
+		}
+	}
+	return w
+}
+
 func (m model) buildFloatBinaryDisplay(signBin, expBin, manBin string, expVal, bias int) string {
 	indent := "  "
+	gap := "   "
 
-	// Header line with field labels
-	signLabel := signStyle.Render("Sign")
-	expLabel := exponentStyle.Render("Exponent")
-	manLabel := mantissaStyle.Render("Mantissa")
+	// Render each field
+	_, signBits, _ := renderFieldBits(signBin, signStyle)
+	expTop, expBits, expBot := renderFieldBits(expBin, exponentStyle)
+	manTop, manBits, manBot := renderFieldBits(manBin, mantissaStyle)
 
-	// Top brackets
-	expTopWidth := len(expBin)
-	manTopWidth := len(manBin)
+	// Field display widths for label alignment
+	signWidth := fieldDisplayWidth(signBin)
+	expWidth := fieldDisplayWidth(expBin)
 
-	signTop := signStyle.Render("╭─╮")
-	expTop := exponentStyle.Render("╭" + strings.Repeat("─", expTopWidth) + "╮")
-	manTop := mantissaStyle.Render("╭" + strings.Repeat("─", manTopWidth) + "╮")
+	// Labels centered above each field's bits
+	manWidth := fieldDisplayWidth(manBin)
 
-	// Bit values (sign digit centered in 3-char bracket)
-	signBits := signStyle.Render(" " + signBin + " ")
-	expBits := exponentStyle.Render(" " + expBin + " ")
-	manBits := mantissaStyle.Render(" " + manBin + " ")
+	// Center a label within a field width, returning (leftPad, rightPad)
+	centerPad := func(labelLen, fieldWidth int) (int, int) {
+		if fieldWidth >= labelLen {
+			left := (fieldWidth - labelLen) / 2
+			right := fieldWidth - labelLen - left
+			return left, right
+		}
+		return 0, labelLen - fieldWidth
+	}
 
-	// Bottom brackets
-	signBot := signStyle.Render("╰─╯")
-	expBot := exponentStyle.Render("╰" + strings.Repeat("─", expTopWidth) + "╯")
-	manBot := mantissaStyle.Render("╰" + strings.Repeat("─", manTopWidth) + "╯")
+	expLabelLeft, _ := centerPad(8, expWidth)
+	manLabelLeft, _ := centerPad(8, manWidth)
 
-	// Decoded info
+	// Sign column is at least as wide as "Sign" (4 chars)
+	signColWidth := signWidth
+	if signColWidth < 4 {
+		signColWidth = 4
+	}
+
+	// Build label line with proper centering
+	var labelLine strings.Builder
+	labelLine.WriteString(strings.Repeat(" ", (signColWidth-4)/2))
+	labelLine.WriteString(signStyle.Render("Sign"))
+	labelLine.WriteString(strings.Repeat(" ", signColWidth-4-(signColWidth-4)/2))
+	labelLine.WriteString(gap)
+	labelLine.WriteString(strings.Repeat(" ", expLabelLeft))
+	labelLine.WriteString(exponentStyle.Render("Exponent"))
+	// Fill remaining exp width + gap before mantissa label
+	expRemainder := expWidth - 8 - expLabelLeft
+	if expRemainder < 0 {
+		expRemainder = 0
+	}
+	labelLine.WriteString(strings.Repeat(" ", expRemainder))
+	labelLine.WriteString(gap)
+	labelLine.WriteString(strings.Repeat(" ", manLabelLeft))
+	labelLine.WriteString(mantissaStyle.Render("Mantissa"))
+
+	// Sign field: no brackets, just the digit. Pad other lines to match width.
+	signDisplayW := signWidth
+	if signDisplayW < 4 {
+		signDisplayW = 4 // at least as wide as "Sign" label
+	}
+	signTopPad := strings.Repeat(" ", signDisplayW)
+	signBotPad := strings.Repeat(" ", signDisplayW)
+	// Center the sign bit in the field width
+	signBitPad := (signDisplayW - signWidth) / 2
+	signBitsLine := strings.Repeat(" ", signBitPad) + signBits + strings.Repeat(" ", signDisplayW-signWidth-signBitPad)
+
+	// Decoded exponent info
 	var decoded string
 	if expVal == 0 {
 		decoded = exponentStyle.Render(fmt.Sprintf("denorm (2^%d)", 1-bias))
@@ -280,20 +400,24 @@ func (m model) buildFloatBinaryDisplay(signBin, expBin, manBin string, expVal, b
 		decoded = exponentStyle.Render(fmt.Sprintf("%d - %d = %d", expVal, bias, expVal-bias))
 	}
 
-	// Build with spacing
-	gap := "   "
-
-	// Align labels above brackets (sign bracket=3 chars, exp bracket=expTopWidth+2 chars)
-	signLabelPad := 3
-	expLabelPad := expTopWidth + 2
-
 	var s strings.Builder
-	s.WriteString(indent + signLabel + strings.Repeat(" ", signLabelPad-4+len(gap)) + expLabel + strings.Repeat(" ", expLabelPad-8+len(gap)) + manLabel + "\n")
-	s.WriteString(indent + signTop + gap + expTop + gap + manTop + "\n")
-	s.WriteString(indent + signBits + gap + expBits + gap + manBits + "\n")
-	s.WriteString(indent + signBot + gap + expBot + gap + manBot + "\n")
-	// Decoded exponent info, aligned under exponent bracket
-	s.WriteString(indent + strings.Repeat(" ", 3+len(gap)) + decoded + "\n")
+	// Label line
+	s.WriteString(indent + labelLine.String() + "\n")
+	// Top brackets
+	s.WriteString(indent + signTopPad + gap + expTop + gap + manTop + "\n")
+	// Bit values
+	s.WriteString(indent + signBitsLine + gap + expBits + gap + manBits + "\n")
+	// Bottom brackets
+	s.WriteString(indent + signBotPad + gap + expBot + gap + manBot + "\n")
+	// Decoded info centered under exponent field
+	decodedPad := signDisplayW + len(gap) - 2
+	if m.bitSize == 64 {
+		decodedPad += 2
+	}
+	if decodedPad < 0 {
+		decodedPad = 0
+	}
+	s.WriteString(indent + strings.Repeat(" ", decodedPad) + decoded)
 
 	return s.String()
 }
