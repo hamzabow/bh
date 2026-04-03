@@ -45,21 +45,46 @@ func (m model) updateIntegerKeys(msg tea.KeyMsg) model {
 		}
 
 	case "t":
+		newType := ""
 		switch m.inputType {
 		case "decimal":
-			m.inputType = "hex"
+			newType = "hex"
 		case "hex":
-			m.inputType = "octal"
+			newType = "octal"
 		case "octal":
-			m.inputType = "binary"
+			newType = "binary"
 		case "binary":
-			m.inputType = "decimal"
+			newType = "decimal"
 		}
-		m.input = ""
-		m.cursor = 0
-		m.err = nil
-		m.hex, m.binary, m.decimal, m.octal = "", "", "", ""
-		m.overflow = false
+
+		if m.decimal == "" || m.err != nil || m.overflow {
+			m.inputType = newType
+			m.input = ""
+			m.cursor = 0
+			m.err = nil
+			m.hex, m.binary, m.decimal, m.octal = "", "", "", ""
+			m.overflow = false
+		} else {
+			m.inputType = newType
+			switch newType {
+			case "decimal":
+				m.input = m.decimal
+			case "octal":
+				m.input = m.octal
+			case "hex", "binary":
+				decVal, _ := strconv.ParseInt(m.decimal, 10, 64)
+				if decVal < 0 {
+					decVal = m.toTwosComplement(decVal)
+				}
+				if newType == "hex" {
+					m.input = strings.ToUpper(fmt.Sprintf("%x", decVal))
+				} else {
+					m.input = fmt.Sprintf("%b", decVal)
+				}
+			}
+			m.cursor = len(m.input)
+			m = m.updateConversions()
+		}
 
 	case "w":
 		switch m.bitSize {
